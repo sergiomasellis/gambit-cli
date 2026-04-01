@@ -1,0 +1,30 @@
+exit_code: 0
+
+stdout:
+ .../transcript.jsonl                               |   2 +
+ .gambit/permissions/requests.jsonl                 |  11 +
+ .gambit/tasks/tasks.jsonl                          |  18 +-
+ bun.lock                                           |  30 +-
+ package.json                                       |   4 +-
+ src/agents/agent-runner.ts                         |   5 +-
+ src/conversation/conversation-runner.test.ts       |   5 +-
+ src/conversation/conversation-runner.ts            |  17 +-
+ src/conversation/conversation-types.ts             |   2 +
+ src/lib/interactive/controller.tsx                 |   9 +-
+ src/lib/messages.ts                                |  17 -
+ src/lib/toolSummaries.test.ts                      |  40 ++
+ src/lib/toolSummaries.ts                           | 422 ++++++++++++++++++++
+ src/repl/ReplScreen.tsx                            |  91 ++++-
+ src/tools/builtins.ts                              |  34 +-
+ src/tools/tool-executor.ts                         |  20 +-
+ src/tools/tool-types.ts                            |   8 +-
+ src/types/tools.ts                                 |  24 +-
+ src/ui/Markdown.tsx                                | 444 ++++++++++-----------
+ src/ui/model-picker/ModelPickerOverlay.tsx         |  44 +-
+ src/ui/panels/ConversationPanel.tsx                |  84 +++-
+ src/ui/panels/TaskPanel.tsx                        |  31 +-
+ src/ui/theme.ts                                    | 127 +++---
+ 23 files changed, 1097 insertions(+), 392 deletions(-)
+
+
+stderr: <empty>

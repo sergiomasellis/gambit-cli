@@ -1,0 +1,10 @@
+exit_code: 0
+
+stdout:
+[main dfe42ff] Add tool summaries feature and UI improvements
+ 23 files changed, 1097 insertions(+), 392 deletions(-)
+ create mode 100644 src/lib/toolSummaries.test.ts
+ create mode 100644 src/lib/toolSummaries.ts
+
+
+stderr: <empty>

@@ -44,24 +44,7 @@ function formatToolStatus(value?: 'started' | 'completed' | 'failed'): string | 
   }
 }
 
-function renderToolLine(message: ConversationMessage) {
-  const toolName = message.metadata?.toolName ?? 'tool'
-  const toolStatus = formatToolStatus(message.metadata?.toolStatus) ?? 'done'
-  const compactSummary = formatCompactToolSummary({
-    toolName,
-    status: message.metadata?.toolStatus,
-    args: message.metadata?.toolArgs,
-    result: message.metadata?.toolResult,
-    artifactPath: message.metadata?.toolArtifactPath,
-  })
 
-  return (
-    <text>
-      <b fg={theme.headerAccent}>{`Tool · ${toolName} · ${toolStatus}`}</b>
-      {compactSummary ? <span fg={rolePresentation.tool.textColor}>{` ${compactSummary}`}</span> : null}
-    </text>
-  )
-}
 
 export function ConversationPanel({ messages, scrollboxRef }: ConversationPanelProps) {
   return (
@@ -74,15 +57,11 @@ export function ConversationPanel({ messages, scrollboxRef }: ConversationPanelP
         rootOptions: {
           flexGrow: 1,
           backgroundColor: theme.background,
-          borderColor: theme.bodyBorder,
         },
         contentOptions: {
           flexDirection: 'column',
-          gap: layout.sectionGap,
-          paddingTop: layout.sectionGap,
-          paddingRight: layout.sectionGap,
-          paddingBottom: layout.sectionGap,
-          paddingLeft: 0,
+          gap: 0,
+          paddingY: 1,
           backgroundColor: theme.background,
         },
       }}
@@ -92,41 +71,49 @@ export function ConversationPanel({ messages, scrollboxRef }: ConversationPanelP
         .map((message) => {
           const isToolMessage = message.role === 'tool'
           const presentation = rolePresentation[message.role] ?? rolePresentation.system
-          const labelSuffix = ''
+          const isUser = message.role === 'user'
+
+          if (isToolMessage) {
+            const toolName = message.metadata?.toolName ?? 'tool'
+            const toolStatus = formatToolStatus(message.metadata?.toolStatus) ?? 'done'
+            const compactSummary = formatCompactToolSummary({
+              toolName,
+              status: message.metadata?.toolStatus,
+              args: message.metadata?.toolArgs,
+              result: message.metadata?.toolResult,
+              artifactPath: message.metadata?.toolArtifactPath,
+            })
+
+            return (
+              <box
+                key={message.id}
+                paddingX={layout.messagePaddingX}
+                paddingY={0}
+              >
+                <text fg={theme.statusFg} attributes={TextAttributes.DIM}>
+                  {`> Tool · ${toolName} · ${toolStatus}${compactSummary ? ` · ${compactSummary}` : ''}`}
+                </text>
+              </box>
+            )
+          }
 
           return (
             <box
               key={message.id}
               flexDirection="column"
-              gap={isToolMessage ? 0 : layout.panelGap}
-              style={{
-                border: ['left'],
-                borderStyle: 'heavy',
-                paddingTop: isToolMessage ? 0 : layout.messagePaddingY,
-                paddingRight: layout.messagePaddingX,
-                paddingBottom: isToolMessage ? 0 : layout.messagePaddingY,
-                paddingLeft: layout.messagePaddingX,
-                backgroundColor: presentation.backgroundColor,
-                borderColor: presentation.borderColor,
-              }}
+              alignItems={isUser ? 'flex-end' : 'flex-start'}
+              paddingX={layout.messagePaddingX}
+              paddingY={1}
             >
-              {isToolMessage ? (
-                renderToolLine(message)
-              ) : (
-                <>
-                  <box flexDirection="column" gap={0}>
-                    <text
-                      fg={theme.headerAccent}
-                      attributes={TextAttributes.BOLD}
-                      content={`${presentation.label}${labelSuffix}`}
-                    />
-                    <Markdown content={message.content} textColor={presentation.textColor} />
-                  </box>
-                  <text fg={theme.statusFg} attributes={TextAttributes.DIM}>
-                    {timestampLabels[message.role]} · {formatTimestamp(message.timestamp)}
-                  </text>
-                </>
-              )}
+              <box flexDirection="column" gap={0}>
+                {/* For user, we might want right-aligned markdown. We rely on the parent alignItems='flex-end' */}
+                <Markdown content={message.content} textColor={presentation.textColor} />
+              </box>
+              <box marginTop={1}>
+                <text fg={theme.statusFg} attributes={TextAttributes.DIM}>
+                  {formatTimestamp(message.timestamp)}
+                </text>
+              </box>
             </box>
           )
         })}

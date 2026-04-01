@@ -1,0 +1,23 @@
+exit_code: 0
+
+stdout:
+App.tsx
+agents
+app
+config.ts
+conversation
+gambit.tsx
+index.tsx
+lib
+memory
+permissions
+repl
+session
+tasks
+tools
+types
+ui
+workboard
+
+
+stderr: <empty>

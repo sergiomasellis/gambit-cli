@@ -1,0 +1,9 @@
+exit_code: 0
+
+stdout:
+total 0
+drwxrwxrwx 1 sergio sergio 4096 Mar 31 15:06 .
+drwxrwxrwx 1 sergio sergio 4096 Mar 31 15:09 ..
+
+
+stderr: <empty>

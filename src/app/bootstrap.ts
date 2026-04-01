@@ -14,6 +14,12 @@ import { TaskRuntime } from '../tasks/task-runtime'
 import { createAiToolMap, createRuntimeToolRegistry } from '../tools/index'
 import { createToolExecutor } from '../tools/tool-executor'
 import type { ToolExecutionContext } from '../tools/tool-types'
+import {
+  getConversationSessionSummary,
+  getLatestConversationSession,
+  listConversationSessions,
+  type ConversationSessionSummary,
+} from '../session/conversation-sessions'
 
 export interface AppRuntime {
   baseSystemPrompt: string
@@ -25,12 +31,19 @@ export interface AppRuntime {
   taskRuntime: TaskRuntime
   shellTaskRunner: ShellTaskRunner
   agentTaskRunner: AgentTaskRunner
-  resetConversation: () => void
+  resetConversation: () => Promise<string>
+  resumeConversation: (conversationId: string) => Promise<ConversationSessionSummary>
+  resumeLatestConversation: () => Promise<ConversationSessionSummary | null>
+  listConversationSessions: () => Promise<ConversationSessionSummary[]>
   runShellCommand: (command: string, options: { background: boolean }) => Promise<{
     taskId: string
     output: string
   }>
   saveMemoryEntry: (content: string) => Promise<string>
+}
+
+export interface BootstrapAppRuntimeOptions {
+  deferConversationInitialization?: boolean
 }
 
 function buildSystemMessage(content: string): ConversationMessage {
@@ -43,7 +56,7 @@ function buildSystemMessage(content: string): ConversationMessage {
   }
 }
 
-export async function bootstrapAppRuntime(): Promise<AppRuntime> {
+export async function bootstrapAppRuntime(options: BootstrapAppRuntimeOptions = {}): Promise<AppRuntime> {
   const baseSystemPrompt = await loadSystemPrompt()
   const systemMessage = buildSystemMessage(baseSystemPrompt)
 
@@ -83,7 +96,9 @@ export async function bootstrapAppRuntime(): Promise<AppRuntime> {
 
   const agentTaskRunner = new AgentTaskRunner(taskRuntime, agentRunner, createChildTools)
   const conversationStore = createConversationStore()
-  await conversationStore.initialize([systemMessage])
+  if (!options.deferConversationInitialization) {
+    await conversationStore.initialize()
+  }
 
   const conversationRunner = new ConversationRunner({
     store: conversationStore,
@@ -105,8 +120,27 @@ export async function bootstrapAppRuntime(): Promise<AppRuntime> {
     taskRuntime,
     shellTaskRunner,
     agentTaskRunner,
-    resetConversation: () => {
-      conversationStore.reset([systemMessage])
+    resetConversation: async () => {
+      return conversationStore.startNewConversation()
+    },
+    resumeConversation: async (conversationId: string) => {
+      const summary = await getConversationSessionSummary(conversationId, workspaceRoot)
+      if (!summary) {
+        throw new Error(`Saved conversation not found: ${conversationId}`)
+      }
+      await conversationStore.openConversation(summary.conversationId)
+      return summary
+    },
+    resumeLatestConversation: async () => {
+      const summary = await getLatestConversationSession(workspaceRoot)
+      if (!summary) {
+        return null
+      }
+      await conversationStore.openConversation(summary.conversationId)
+      return summary
+    },
+    listConversationSessions: async () => {
+      return listConversationSessions(workspaceRoot)
     },
     runShellCommand: async (command: string, options: { background: boolean }) => {
       const permission = await permissionEngine.request({

@@ -1,8 +1,12 @@
 import { AppShell } from './app/AppShell'
 import { bootstrapAppRuntime } from './app/bootstrap'
+import { parseLaunchOptions } from './app/launch-options'
 
-const runtime = await bootstrapAppRuntime()
+const launchOptions = parseLaunchOptions(Bun.argv.slice(2))
+const runtime = await bootstrapAppRuntime({
+  deferConversationInitialization: launchOptions.mode !== 'new',
+})
 
 export function App() {
-  return <AppShell runtime={runtime} />
+  return <AppShell runtime={runtime} launchOptions={launchOptions} />
 }

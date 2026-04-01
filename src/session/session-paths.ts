@@ -10,6 +10,10 @@ export function getCurrentSessionDirectory(root: string = workspaceRoot): string
   return path.join(getGambitDirectory(root), 'session')
 }
 
+export function getModelSelectionPath(root: string = workspaceRoot): string {
+  return path.join(getGambitDirectory(root), 'model-selection.json')
+}
+
 export function getSessionTranscriptPath(root: string = workspaceRoot): string {
   return path.join(getCurrentSessionDirectory(root), 'transcript.jsonl')
 }

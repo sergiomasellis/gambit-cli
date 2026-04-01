@@ -1,0 +1,18 @@
+exit_code: 0
+
+stdout:
+total 52
+drwxrwxrwx 1 sergio sergio  4096 Mar 31 14:37 .
+drwxrwxrwx 1 sergio sergio  4096 Mar 31 14:53 ..
+-rwxrwxrwx 1 sergio sergio  1554 Mar 31 15:01 basicTools.test.ts
+-rwxrwxrwx 1 sergio sergio 15270 Mar 31 14:59 builtins.ts
+-rwxrwxrwx 1 sergio sergio  3897 Mar 31 14:59 index.ts
+-rwxrwxrwx 1 sergio sergio  3825 Oct  4 23:20 patchFileTool.test.ts
+-rwxrwxrwx 1 sergio sergio  2338 Mar 31 14:37 tool-executor.test.ts
+-rwxrwxrwx 1 sergio sergio  7196 Mar 31 14:47 tool-executor.ts
+-rwxrwxrwx 1 sergio sergio  1086 Mar 31 14:37 tool-registry.test.ts
+-rwxrwxrwx 1 sergio sergio   843 Mar 31 14:35 tool-registry.ts
+-rwxrwxrwx 1 sergio sergio  1726 Mar 31 14:47 tool-types.ts
+
+
+stderr: <empty>

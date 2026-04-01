@@ -3,6 +3,7 @@ import { useKeyboard, useRenderer } from '@opentui/react'
 import { randomUUID } from 'node:crypto'
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
 
+import type { LaunchOptions } from '../app/launch-options'
 import { defaultModel } from '../config'
 import { useAppRuntime, useConversationSnapshot, usePermissionSnapshot, useTaskSnapshot } from '../app/providers'
 import { copyTextToClipboard } from '../lib/clipboard'
@@ -11,18 +12,40 @@ import type { ReasoningEffort } from '../lib/model'
 import { executeSlashCommand, type SlashCommandExecution } from '../lib/slashCommands'
 import { useInteractiveController } from '../lib/interactive/controller'
 import type { UIMessage } from '../types/chat'
+import type { ConversationSessionSummary } from '../session/conversation-sessions'
+import { readModelSelection, writeModelSelection } from '../session/model-selection'
 import { routeInput } from './input-router'
 import { layout, theme } from '../ui/theme'
 import { ModelPickerOverlay } from '../ui/model-picker/ModelPickerOverlay'
 import { ConversationPanel } from '../ui/panels/ConversationPanel'
 import { TaskPanel } from '../ui/panels/TaskPanel'
 import { PermissionOverlay } from '../ui/overlays/PermissionOverlay'
+import { SessionPickerOverlay, type SessionPickerOption } from '../ui/overlays/SessionPickerOverlay'
 
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
 })
+
+const sessionTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+const responseSpinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const
+const responseSpinnerIntervalMs = 80
+
+interface SessionPickerState {
+  isOpen: boolean
+  filterValue: string
+  selectedIndex: number
+  sessions: ConversationSessionSummary[]
+  fetchState: 'idle' | 'loading' | 'success' | 'error'
+  fetchError: string | null
+}
 
 function formatSlashCommandMessage(execution: SlashCommandExecution): string {
   const scopeLabel = execution.namespace ? `${execution.scope}:${execution.namespace}` : execution.scope
@@ -60,7 +83,42 @@ function formatDuration(milliseconds: number): string {
   return parts.join(' ')
 }
 
-export function ReplScreen() {
+function formatSessionTimestamp(value: string | null): string {
+  if (!value) {
+    return 'unknown'
+  }
+
+  const timestamp = new Date(value)
+  if (Number.isNaN(timestamp.getTime())) {
+    return 'unknown'
+  }
+
+  return sessionTimestampFormatter.format(timestamp)
+}
+
+function describeSessionOption(summary: ConversationSessionSummary, isCurrent: boolean): string {
+  const parts = [
+    summary.conversationId.slice(0, 8),
+    `updated ${formatSessionTimestamp(summary.updatedAt)}`,
+    `${summary.messageCount} msgs`,
+  ]
+
+  if (isCurrent) {
+    parts.push('current')
+  }
+
+  if (summary.preview) {
+    parts.push(summary.preview)
+  }
+
+  return parts.join(' · ')
+}
+
+export interface ReplScreenProps {
+  launchOptions: LaunchOptions
+}
+
+export function ReplScreen({ launchOptions }: ReplScreenProps) {
   const renderer = useRenderer()
   const runtime = useAppRuntime()
   const conversation = useConversationSnapshot()
@@ -73,8 +131,20 @@ export function ReplScreen() {
   const [statusElapsed, setStatusElapsed] = useState<string | null>(null)
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort | null>(null)
   const [thinkingEnabled, setThinkingEnabled] = useState(false)
+  const [responseSpinnerFrame, setResponseSpinnerFrame] = useState(0)
+  const [sessionInitializing, setSessionInitializing] = useState(launchOptions.mode !== 'new')
+  const [sessionPickerState, setSessionPickerState] = useState<SessionPickerState>({
+    isOpen: false,
+    filterValue: '',
+    selectedIndex: 0,
+    sessions: [],
+    fetchState: 'idle',
+    fetchError: null,
+  })
   const scrollboxRef = useRef<ScrollBoxRenderable | null>(null)
   const statusStartedAtRef = useRef<Date | null>(null)
+  const launchHandledRef = useRef(false)
+  const modelSelectionDirtyRef = useRef(false)
   const interactiveMessages = useMemo<UIMessage[]>(
     () =>
       conversation.messages.map((message) => ({
@@ -84,13 +154,70 @@ export function ReplScreen() {
     [conversation.messages],
   )
 
+  const sessionPickerOptions = useMemo<SessionPickerOption[]>(() => {
+    const filter = sessionPickerState.filterValue.trim().toLowerCase()
+    const filteredSessions = sessionPickerState.sessions.filter((session) => {
+      if (!filter) {
+        return true
+      }
+
+      const haystack = [
+        session.conversationId,
+        session.title,
+        session.preview ?? '',
+      ]
+        .join('\n')
+        .toLowerCase()
+
+      return haystack.includes(filter)
+    })
+
+    const sessionOptions: SessionPickerOption[] = filteredSessions.map((session) => ({
+      key: session.conversationId,
+      kind: 'session',
+      title: session.title,
+      description: describeSessionOption(session, session.conversationId === conversation.conversationId),
+    }))
+
+    const newOption: SessionPickerOption = {
+      key: 'new',
+      kind: 'new',
+      title: 'Start new conversation',
+      description: 'Create a fresh session with a new conversation ID.',
+    }
+
+    if (sessionOptions.length === 0) {
+      return [newOption]
+    }
+
+    return [
+      ...sessionOptions,
+      newOption,
+    ]
+  }, [conversation.conversationId, sessionPickerState.filterValue, sessionPickerState.sessions])
+
+  const persistModelSelection = useCallback(
+    (nextModelId: string, nextReasoningEffort: ReasoningEffort | null) => {
+      modelSelectionDirtyRef.current = true
+      setModelId(nextModelId)
+      setReasoningEffort(nextReasoningEffort)
+
+      void writeModelSelection({
+        modelId: nextModelId,
+        reasoningEffort: nextReasoningEffort,
+      }).catch((error) => {
+        runtime.conversationStore.setError(error instanceof Error ? error.message : String(error))
+      })
+    },
+    [runtime.conversationStore],
+  )
+
   const modelPicker = useModelPicker({
     apiKey: apiKey.trim().length > 0 ? apiKey.trim() : null,
     currentModelId: modelId,
     currentReasoning: reasoningEffort,
     onSelect: (model, effort) => {
-      setModelId(model.id)
-      setReasoningEffort(effort)
+      persistModelSelection(model.id, effort)
       void runtime.conversationStore.pushMessage({
         id: randomUUID(),
         role: 'system',
@@ -112,6 +239,243 @@ export function ReplScreen() {
     selectByIndex: selectModelByIndex,
     setSelection: setModelSelection,
   } = modelPicker
+
+  const dismissSessionPicker = useCallback(() => {
+    setSessionPickerState((current) => ({
+      ...current,
+      isOpen: false,
+      selectedIndex: 0,
+      fetchError: null,
+    }))
+  }, [])
+
+  const refreshSessionPicker = useCallback(
+    async (filterValue: string = '') => {
+      setSessionPickerState((current) => ({
+        ...current,
+        isOpen: true,
+        filterValue,
+        selectedIndex: 0,
+        fetchState: 'loading',
+        fetchError: null,
+      }))
+
+      try {
+        const sessions = await runtime.listConversationSessions()
+        setSessionPickerState((current) => ({
+          ...current,
+          isOpen: true,
+          filterValue,
+          selectedIndex: 0,
+          sessions,
+          fetchState: 'success',
+          fetchError: null,
+        }))
+      } catch (error) {
+        setSessionPickerState((current) => ({
+          ...current,
+          isOpen: true,
+          filterValue,
+          fetchState: 'error',
+          fetchError: error instanceof Error ? error.message : String(error),
+        }))
+      }
+    },
+    [runtime],
+  )
+
+  const startFreshConversation = useCallback(async () => {
+    if (conversation.status === 'running') {
+      runtime.conversationStore.setError('Finish or cancel the current run before starting a new conversation.')
+      return
+    }
+
+    setSessionInitializing(true)
+    try {
+      await runtime.resetConversation()
+      dismissSessionPicker()
+    } catch (error) {
+      runtime.conversationStore.setError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSessionInitializing(false)
+    }
+  }, [conversation.status, dismissSessionPicker, runtime])
+
+  const openSessionPicker = useCallback(
+    (initialFilter: string = '') => {
+      if (conversation.status === 'running') {
+        runtime.conversationStore.setError('Finish or cancel the current run before switching conversations.')
+        return
+      }
+
+      void refreshSessionPicker(initialFilter)
+    },
+    [conversation.status, refreshSessionPicker, runtime],
+  )
+
+  const moveSessionSelection = useCallback(
+    (delta: number) => {
+      setSessionPickerState((current) => {
+        const maxIndex = Math.max(0, sessionPickerOptions.length - 1)
+        const nextIndex = Math.min(maxIndex, Math.max(0, current.selectedIndex + delta))
+        return {
+          ...current,
+          selectedIndex: nextIndex,
+        }
+      })
+    },
+    [sessionPickerOptions.length],
+  )
+
+  const setSessionSelection = useCallback(
+    (index: number) => {
+      setSessionPickerState((current) => ({
+        ...current,
+        selectedIndex: Math.min(Math.max(index, 0), Math.max(0, sessionPickerOptions.length - 1)),
+      }))
+    },
+    [sessionPickerOptions.length],
+  )
+
+  const selectSessionByIndex = useCallback(
+    async (index: number) => {
+      const option = sessionPickerOptions[index]
+      if (!option) {
+        return
+      }
+
+      if (option.kind === 'new') {
+        await startFreshConversation()
+        return
+      }
+
+      setSessionInitializing(true)
+      try {
+        await runtime.resumeConversation(option.key)
+        dismissSessionPicker()
+      } catch (error) {
+        runtime.conversationStore.setError(error instanceof Error ? error.message : String(error))
+      } finally {
+        setSessionInitializing(false)
+      }
+    },
+    [dismissSessionPicker, runtime, sessionPickerOptions, startFreshConversation],
+  )
+
+  const handleSessionFilterChange = useCallback((value: string) => {
+    setSessionPickerState((current) => ({
+      ...current,
+      filterValue: value,
+      selectedIndex: 0,
+    }))
+  }, [])
+
+  const handleSessionFilterSubmit = useCallback(
+    (value: string) => {
+      const trimmed = value.trim().toLowerCase()
+      if (trimmed === 'cancel') {
+        if (conversation.initialized) {
+          dismissSessionPicker()
+        } else {
+          void startFreshConversation()
+        }
+        return
+      }
+
+      if (trimmed === 'new') {
+        void startFreshConversation()
+        return
+      }
+
+      if (trimmed === 'retry' && sessionPickerState.fetchState === 'error') {
+        void refreshSessionPicker(sessionPickerState.filterValue)
+        return
+      }
+
+      void selectSessionByIndex(sessionPickerState.selectedIndex)
+    },
+    [
+      conversation.initialized,
+      dismissSessionPicker,
+      refreshSessionPicker,
+      selectSessionByIndex,
+      sessionPickerState.fetchState,
+      sessionPickerState.filterValue,
+      sessionPickerState.selectedIndex,
+      startFreshConversation,
+    ],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const persistedSelection = await readModelSelection()
+        if (!persistedSelection || cancelled || modelSelectionDirtyRef.current) {
+          return
+        }
+
+        setModelId(persistedSelection.modelId)
+        setReasoningEffort(persistedSelection.reasoningEffort)
+      } catch (error) {
+        if (!cancelled) {
+          runtime.conversationStore.setError(error instanceof Error ? error.message : String(error))
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [runtime.conversationStore])
+
+  useEffect(() => {
+    if (launchHandledRef.current) {
+      return
+    }
+    launchHandledRef.current = true
+
+    if (launchOptions.mode === 'new') {
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        if (launchOptions.mode === 'continue') {
+          const latest = await runtime.resumeLatestConversation()
+          if (!latest) {
+            await runtime.resetConversation()
+            runtime.conversationStore.setError('No saved conversations found. Started a new conversation instead.')
+          }
+          return
+        }
+
+        if (launchOptions.mode === 'resume-id' && launchOptions.conversationId) {
+          try {
+            await runtime.resumeConversation(launchOptions.conversationId)
+          } catch (error) {
+            await runtime.resetConversation()
+            runtime.conversationStore.setError(error instanceof Error ? error.message : String(error))
+          }
+          return
+        }
+
+        if (launchOptions.mode === 'resume-picker') {
+          await refreshSessionPicker(launchOptions.query ?? '')
+        }
+      } finally {
+        if (!cancelled) {
+          setSessionInitializing(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [launchOptions, refreshSessionPicker, runtime])
 
   useEffect(() => {
     const scrollbox = scrollboxRef.current
@@ -146,6 +510,22 @@ export function ReplScreen() {
     }
   }, [conversation.status])
 
+  useEffect(() => {
+    if (conversation.status !== 'running') {
+      setResponseSpinnerFrame(0)
+      return
+    }
+
+    setResponseSpinnerFrame(0)
+    const intervalId = setInterval(() => {
+      setResponseSpinnerFrame((current) => (current + 1) % responseSpinnerFrames.length)
+    }, responseSpinnerIntervalMs)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [conversation.status])
+
   useKeyboard(
     useCallback(
       async (key: ParsedKey) => {
@@ -156,6 +536,27 @@ export function ReplScreen() {
           }
           if (key.name === 'n' || key.name === 'escape') {
             await runtime.permissionEngine.resolve(permissionSnapshot.activeRequest.id, 'deny')
+            return
+          }
+        }
+
+        if (sessionPickerState.isOpen) {
+          if (key.name === 'escape') {
+            if (conversation.initialized) {
+              dismissSessionPicker()
+            } else {
+              await startFreshConversation()
+            }
+            return
+          }
+
+          if (key.name === 'up') {
+            moveSessionSelection(-1)
+            return
+          }
+
+          if (key.name === 'down') {
+            moveSessionSelection(1)
             return
           }
         }
@@ -179,7 +580,19 @@ export function ReplScreen() {
           }
         }
       },
-      [closeModelPicker, modelPickerState.isOpen, modelPickerState.mode, moveModelSelection, permissionSnapshot.activeRequest, runtime.permissionEngine],
+      [
+        closeModelPicker,
+        conversation.initialized,
+        dismissSessionPicker,
+        modelPickerState.isOpen,
+        modelPickerState.mode,
+        moveModelSelection,
+        moveSessionSelection,
+        permissionSnapshot.activeRequest,
+        runtime.permissionEngine,
+        sessionPickerState.isOpen,
+        startFreshConversation,
+      ],
     ),
   )
 
@@ -195,6 +608,10 @@ export function ReplScreen() {
         if (!apiKey.trim()) {
           runtime.conversationStore.setError('Set an OpenRouter API key before chatting (:key <token>).')
           return
+        }
+
+        if (!conversation.initialized) {
+          await runtime.resetConversation()
         }
 
         const userMessage = {
@@ -221,8 +638,7 @@ export function ReplScreen() {
             runtime.conversationStore.setError('Usage: :model <model-id>')
             return
           }
-          setModelId(routed.argument)
-          setReasoningEffort(null)
+          persistModelSelection(routed.argument, null)
           await runtime.conversationStore.pushMessage({
             id: randomUUID(),
             role: 'system',
@@ -248,7 +664,12 @@ export function ReplScreen() {
         }
 
         if (routed.name === 'reset') {
-          runtime.resetConversation()
+          await startFreshConversation()
+          return
+        }
+
+        if (routed.name === 'resume') {
+          openSessionPicker(routed.argument)
           return
         }
 
@@ -309,9 +730,14 @@ export function ReplScreen() {
         return
       }
 
+      if (routed.kind === 'local-ui' && routed.channel === 'slash' && routed.name === 'resume') {
+        openSessionPicker(routed.argument)
+        return
+      }
+
       if (routed.channel === 'slash') {
         if (routed.name === 'clear') {
-          runtime.resetConversation()
+          await startFreshConversation()
           return
         }
 
@@ -341,12 +767,16 @@ export function ReplScreen() {
     },
     [
       apiKey,
+      conversation.initialized,
       handleFilterSubmit,
       modelId,
       modelPickerState.fetchState,
       openModelPicker,
+      openSessionPicker,
+      persistModelSelection,
       reasoningEffort,
       runtime,
+      startFreshConversation,
       thinkingEnabled,
     ],
   )
@@ -356,7 +786,7 @@ export function ReplScreen() {
       const resolvedMessages =
         typeof next === 'function' ? next(interactiveMessages) : next
 
-      runtime.conversationStore.reset(
+      void runtime.conversationStore.replaceMessages(
         resolvedMessages.map((message) => ({
           ...message,
           timestamp: message.timestamp.toISOString(),
@@ -447,40 +877,55 @@ export function ReplScreen() {
     [renderer, runtime.conversationStore],
   )
 
+  const [gitBranch, setGitBranch] = useState<string>('')
+
+  useEffect(() => {
+    const proc = Bun.spawn(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+    new Response(proc.stdout)
+      .text()
+      .then((branch: string) => setGitBranch(branch.trim()))
+      .catch(() => setGitBranch(''))
+  }, [])
+
   const modelDisplay = reasoningEffort ? `${modelId} (effort: ${reasoningEffort})` : modelId
   const statusDisplay =
     conversation.status === 'running' && statusElapsed ? `running - ${statusElapsed}` : conversation.status
+  const responseSpinner = responseSpinnerFrames[responseSpinnerFrame] ?? responseSpinnerFrames[0]
   const isPermissionDialogOpen = Boolean(permissionSnapshot.activeRequest)
-  const isMainInputFocused = !modelPickerState.isOpen && !isPermissionDialogOpen
+  const isMainInputFocused =
+    !modelPickerState.isOpen && !sessionPickerState.isOpen && !isPermissionDialogOpen && !sessionInitializing
   const isModelPickerFocused = modelPickerState.isOpen && !isPermissionDialogOpen
+  const isSessionPickerFocused = sessionPickerState.isOpen && !isPermissionDialogOpen && !modelPickerState.isOpen
 
   return (
     <box
       flexDirection="column"
       flexGrow={1}
       padding={layout.screenPadding}
-      gap={layout.sectionGap}
-      onMouseUp={handleMouseUp}
-      style={{ backgroundColor: theme.background }}
+      backgroundColor={theme.background}
     >
       <box
-        flexDirection="column"
-        style={{
-          border: ['left'],
-          borderColor: theme.headerBorder,
-          paddingTop: layout.panelPaddingY,
-          paddingRight: layout.panelPaddingX,
-          paddingBottom: layout.panelPaddingY,
-          paddingLeft: layout.panelPaddingX,
-          backgroundColor: theme.header,
-        }}
+        flexDirection="row"
+        justifyContent="space-between"
+        alignItems="center"
+        paddingBottom={1}
       >
-        <box justifyContent="space-between" flexDirection="row">
-          <ascii-font font="tiny" text="Gambit" />
-          <text fg={theme.headerAccent} attributes={TextAttributes.BOLD}>
-            Model · {modelDisplay}
-          </text>
-        </box>
+        <text fg={theme.systemFg}>
+          Terminal  <span fg={theme.statusFg} attributes={TextAttributes.DIM}>gambit</span>
+        </text>
+        {/* <text fg={theme.statusFg} attributes={TextAttributes.DIM}>
+          Model · {modelDisplay}
+        </text> */}
+        {conversation.status === 'running' ? (
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.headerAccent} attributes={TextAttributes.BOLD} content={responseSpinner} />
+            <text
+              fg={theme.statusFg}
+              attributes={TextAttributes.DIM}
+              content="Generating response…"
+            />
+          </box>
+        ) : null}
       </box>
 
       {conversation.error ? (
@@ -503,23 +948,14 @@ export function ReplScreen() {
       {interactive.historySearch.active ? (
         <box
           flexDirection="column"
-          gap={layout.panelGap}
-          style={{
-            border: ['left'],
-            borderColor: theme.headerBorder,
-            backgroundColor: theme.header,
-            paddingTop: layout.panelPaddingY,
-            paddingRight: layout.panelPaddingX,
-            paddingBottom: layout.panelPaddingY,
-            paddingLeft: layout.panelPaddingX,
-          }}
+          paddingY={1}
+          paddingX={layout.panelPaddingX}
         >
           <text
             fg={theme.headerAccent}
             attributes={TextAttributes.BOLD}
-            content={`reverse-search: ${interactive.historySearch.query || '...'}${
-              interactive.historySearch.match ? ` -> ${interactive.historySearch.match}` : ''
-            }`}
+            content={`reverse-search: ${interactive.historySearch.query || '...'}${interactive.historySearch.match ? ` -> ${interactive.historySearch.match}` : ''
+              }`}
           />
           <text
             fg={theme.statusFg}
@@ -529,39 +965,17 @@ export function ReplScreen() {
         </box>
       ) : null}
 
-      <box
-        flexDirection="row"
-        flexWrap="wrap"
-        gap={layout.statusGap}
-        style={{
-          border: ['left'],
-          borderColor: theme.bodyBorder,
-          paddingTop: layout.panelPaddingY,
-          paddingRight: layout.panelPaddingX,
-          paddingBottom: layout.panelPaddingY,
-          paddingLeft: layout.panelPaddingX,
-          backgroundColor: theme.background,
-        }}
-      >
-        <text
-          fg={theme.statusFg}
-          attributes={TextAttributes.DIM}
-          content={`Thinking · ${thinkingEnabled ? 'on' : 'off'}`}
-        />
-        <text
-          fg={theme.statusFg}
-          attributes={TextAttributes.DIM}
-          content={`Permissions · ${permissionSnapshot.mode}`}
-        />
-        <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={`Status · ${statusDisplay}`} />
-        <text
-          fg={theme.statusFg}
-          attributes={TextAttributes.DIM}
-          content={`Updated · ${timestampFormatter.format(new Date())}`}
-        />
-      </box>
+      {sessionInitializing ? (
+        <box paddingY={1} paddingX={layout.panelPaddingX}>
+          <text
+            fg={theme.statusFg}
+            attributes={TextAttributes.DIM}
+            content="Preparing conversation session…"
+          />
+        </box>
+      ) : null}
 
-      <TaskPanel tasks={taskSnapshot.tasks} />
+      {/* Removed the previous status row as it is now integrated into the single input box */}
 
       {modelPickerState.isOpen ? (
         <ModelPickerOverlay
@@ -577,40 +991,84 @@ export function ReplScreen() {
         />
       ) : null}
 
+      {sessionPickerState.isOpen ? (
+        <SessionPickerOverlay
+          isOpen={sessionPickerState.isOpen}
+          hasFocus={isSessionPickerFocused}
+          filterValue={sessionPickerState.filterValue}
+          selectedIndex={sessionPickerState.selectedIndex}
+          fetchState={sessionPickerState.fetchState}
+          fetchError={sessionPickerState.fetchError}
+          options={sessionPickerOptions}
+          onFilterChange={handleSessionFilterChange}
+          onFilterSubmit={handleSessionFilterSubmit}
+          onOptionChange={setSessionSelection}
+          onOptionSelect={(index) => {
+            void selectSessionByIndex(index)
+          }}
+        />
+      ) : null}
+
       {permissionSnapshot.activeRequest ? <PermissionOverlay request={permissionSnapshot.activeRequest} /> : null}
 
       <box
         flexDirection="column"
-        gap={inputPreview ? layout.panelGap : 0}
+        border={['top', 'bottom', 'left', 'right']}
+        borderStyle="rounded"
+        paddingX={1}
+        paddingY={1}
+        minHeight={6}
+        justifyContent="space-between"
         style={{
-          border: ['left'],
-          borderStyle: 'heavy',
-          borderColor: theme.inputBorder,
-          paddingRight: layout.panelPaddingX,
-          paddingLeft: layout.panelPaddingX,
-          backgroundColor: theme.header,
+          borderColor: theme.bodyBorder,
+          backgroundColor: theme.background,
         }}
       >
-        {inputPreview ? <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={inputPreview} /> : null}
-        <box
-          flexDirection="column"
-          minHeight={layout.inputRowMinHeight}
-          justifyContent="center"
-          paddingTop={1}
-          paddingBottom={1}
-        >
-          <input
-            value={inputValue}
-            onInput={interactive.handleInput}
-            onSubmit={handleInputSubmit}
-            focused={isMainInputFocused}
-            backgroundColor={theme.header}
-            focusedBackgroundColor={theme.header}
-            textColor={theme.userFg}
-            placeholderColor={theme.statusFg}
-            cursorColor={theme.headerAccent}
-          />
+        <box flexDirection="column" gap={inputPreview ? 1 : 0}>
+          {inputPreview ? <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={inputPreview} /> : null}
+          <box
+            flexDirection="row"
+            // paddingTop={1}
+            paddingLeft={1}
+            paddingBottom={2}
+          >
+            <text fg={theme.headerAccent} attributes={TextAttributes.BOLD} content="❯ " />
+            <box flexGrow={1} flexDirection="column">
+              <input
+                value={inputValue}
+                onInput={interactive.handleInput}
+                onSubmit={handleInputSubmit}
+                focused={isMainInputFocused}
+                backgroundColor={theme.background}
+                focusedBackgroundColor={theme.background}
+                textColor={theme.userFg}
+                placeholderColor={theme.statusFg}
+                placeholder="Ask anything or @ tag files/folders"
+                cursorColor={theme.headerAccent}
+              />
+            </box>
+          </box>
         </box>
+
+        <box flexDirection="row" gap={3} padding={1}>
+          <text fg={theme.headerAccent}>* {modelDisplay}</text>
+          <text fg={theme.statusFg}>💨 {thinkingEnabled ? 'Thinking' : 'Direct'}</text>
+          <text fg={theme.statusFg}>🔓 {permissionSnapshot.mode}</text>
+        </box>
+      </box>
+
+      <box flexDirection="row" justifyContent="space-between" marginTop={1} paddingX={1}>
+        <box flexDirection="row" gap={3}>
+          <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={`📁 Local`} />
+          <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={`⑂ ${gitBranch || 'unknown'}`} />
+          <text
+            fg={theme.statusFg}
+            attributes={TextAttributes.DIM}
+            content={`◦ ${conversation.conversationId.slice(0, 8)}`}
+          />
+          <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={`· ${statusDisplay}`} />
+        </box>
+        <TaskPanel tasks={taskSnapshot.tasks} />
       </box>
     </box>
   )

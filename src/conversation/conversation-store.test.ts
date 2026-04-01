@@ -33,3 +33,38 @@ test('returns a stable snapshot object until state changes', async () => {
   expect(updatedSnapshot).not.toBe(initialSnapshot)
   expect(store.getSnapshot()).toBe(updatedSnapshot)
 })
+
+test('can switch between persisted conversations and rewrite the active transcript', async () => {
+  const store = createConversationStore({ rootPath: tempRoot, conversationId: 'first-session' })
+  await store.initialize()
+  await store.pushMessage({
+    id: 'message-1',
+    role: 'user',
+    content: 'first conversation',
+    timestamp: new Date().toISOString(),
+  })
+
+  await store.openConversation('second-session')
+  await store.pushMessage({
+    id: 'message-2',
+    role: 'user',
+    content: 'second conversation',
+    timestamp: new Date().toISOString(),
+  })
+
+  await store.openConversation('first-session')
+  expect(store.getSnapshot().conversationId).toBe('first-session')
+  expect(store.getSnapshot().messages.map((message) => message.content)).toEqual(['first conversation'])
+
+  await store.replaceMessages([
+    {
+      id: 'message-3',
+      role: 'assistant',
+      content: 'rewritten conversation',
+      timestamp: new Date().toISOString(),
+    },
+  ])
+
+  await store.openConversation('first-session')
+  expect(store.getSnapshot().messages.map((message) => message.content)).toEqual(['rewritten conversation'])
+})

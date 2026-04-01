@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import {
   getCurrentSessionDirectory,
+  getModelSelectionPath,
   getPermissionStorePath,
   getSessionTranscriptPath,
   getTaskDirectory,
@@ -20,6 +21,7 @@ describe('session paths', () => {
 
   test('builds session and runtime paths from the workspace root', () => {
     expect(getCurrentSessionDirectory(root)).toBe(path.join(root, '.gambit', 'session'))
+    expect(getModelSelectionPath(root)).toBe(path.join(root, '.gambit', 'model-selection.json'))
     expect(getSessionTranscriptPath(root)).toBe(path.join(root, '.gambit', 'session', 'transcript.jsonl'))
     expect(getTasksDirectory(root)).toBe(path.join(root, '.gambit', 'tasks'))
     expect(getTaskStorePath(root)).toBe(path.join(root, '.gambit', 'tasks', 'tasks.jsonl'))

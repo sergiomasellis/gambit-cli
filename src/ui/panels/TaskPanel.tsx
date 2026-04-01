@@ -12,31 +12,14 @@ export function TaskPanel({ tasks }: TaskPanelProps) {
     return null
   }
 
+  const runningTasks = tasks.filter((t) => t.status === 'running').length
+  const textContent = runningTasks > 0
+    ? `⚙  Tasks: ${runningTasks} running`
+    : `⚙  Tasks: ${tasks.length} total`
+
   return (
-    <box
-      flexDirection="column"
-      gap={layout.panelGap}
-      style={{
-        border: ['left'],
-        borderColor: theme.bodyBorder,
-        paddingTop: layout.panelPaddingY,
-        paddingRight: layout.panelPaddingX,
-        paddingBottom: layout.panelPaddingY,
-        paddingLeft: layout.panelPaddingX,
-        backgroundColor: theme.background,
-      }}
-    >
-      <text fg={theme.headerAccent} attributes={TextAttributes.BOLD} content="Tasks" />
-      <box flexDirection="column" gap={0}>
-        {tasks.slice(0, 5).map((task) => (
-          <text
-            key={task.id}
-            fg={theme.statusFg}
-            attributes={TextAttributes.DIM}
-            content={`${task.id.slice(0, 8)} [${task.kind}:${task.status}] ${task.title}`}
-          />
-        ))}
-      </box>
+    <box flexDirection="row" gap={layout.panelGap}>
+      <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={textContent} />
     </box>
   )
 }
