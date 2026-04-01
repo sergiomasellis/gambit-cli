@@ -1,6 +1,7 @@
 # Gambit CLI
 
 > Interactive AI agent development environment built with Bun, TypeScript, and OpenTUI.
+<img width="1727" height="1360" alt="Screenshot 2026-04-01 072936" src="https://github.com/user-attachments/assets/c2738f9a-d1e7-48e6-b242-0d762c6e6da4" />
 
 [![Bun](https://img.shields.io/badge/built%20with-bun-ffd0db.svg)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/type-safe-TypeScript-blue.svg)](https://www.typescriptlang.org/)
