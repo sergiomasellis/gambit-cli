@@ -81,7 +81,7 @@ export class ToolExecutor {
       if (definition.getPermissionRequest && context.permissionEngine) {
         const permissionRequest = definition.getPermissionRequest(parsedInput as never)
         if (permissionRequest) {
-          // Tag plan file writes so the permission system can allow them in plan mode
+          // Tag Plan file writes so the permission system can allow them in Plan mode
           const metadata = { ...permissionRequest.metadata }
           if (
             (toolId === 'writeFile' || toolId === 'patchFile') &&

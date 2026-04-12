@@ -1,6 +1,6 @@
 import type { PermissionDecision } from './permission-types'
 
-export type PermissionMode = 'normal' | 'plan' | 'auto-accept'
+export type PermissionMode = 'Normal' | 'Plan' | 'Auto-accept'
 
 export interface PermissionEvaluationInput {
   toolId: string
@@ -9,9 +9,9 @@ export interface PermissionEvaluationInput {
 }
 
 export function cyclePermissionMode(mode: PermissionMode): PermissionMode {
-  const order: PermissionMode[] = ['normal', 'plan', 'auto-accept']
+  const order: PermissionMode[] = ['Normal', 'Plan', 'Auto-accept']
   const index = order.indexOf(mode)
-  return order[(index + 1) % order.length] ?? 'normal'
+  return order[(index + 1) % order.length] ?? 'Normal'
 }
 
 /** Tool IDs that are always safe to run (read-only). */
@@ -35,7 +35,7 @@ export function evaluatePermissionMode(
   mode: PermissionMode,
   input: PermissionEvaluationInput,
 ): PermissionDecision {
-  if (mode === 'auto-accept') {
+  if (mode === 'Auto-accept') {
     return 'allow'
   }
 
@@ -44,13 +44,13 @@ export function evaluatePermissionMode(
     return 'allow'
   }
 
-  if (mode === 'plan') {
-    // exitPlanMode triggers the plan approval overlay
+  if (mode === 'Plan') {
+    // exitPlanMode triggers the Plan approval overlay
     if (input.toolId === 'exitPlanMode') {
       return 'ask'
     }
 
-    // Allow writing to plan files (detected by metadata)
+    // Allow writing to Plan files (detected by metadata)
     if (
       (input.toolId === 'writeFile' || input.toolId === 'patchFile') &&
       input.metadata?.isPlanFileWrite
@@ -58,7 +58,7 @@ export function evaluatePermissionMode(
       return 'allow'
     }
 
-    // Block all other write/execute tools in plan mode
+    // Block all other write/execute tools in Plan mode
     if (WRITE_TOOLS.has(input.toolId)) {
       return 'deny'
     }

@@ -199,14 +199,14 @@ function App() {
 
 ```tsx
 function Editor() {
-  const [mode, setMode] = useState<"normal" | "insert">("normal")
+  const [mode, setMode] = useState<"Normal" | "insert">("Normal")
   
   useKeyboard((key) => {
-    if (mode === "normal") {
+    if (mode === "Normal") {
       if (key.name === "i") setMode("insert")
-      if (key.name === "escape") setMode("normal")
+      if (key.name === "escape") setMode("Normal")
     } else {
-      if (key.name === "escape") setMode("normal")
+      if (key.name === "escape") setMode("Normal")
       // Handle text input in insert mode
     }
   })

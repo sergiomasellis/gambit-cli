@@ -1,6 +1,6 @@
 import type { UIMessage } from "../../types/chat"
 
-export type PermissionMode = "normal" | "plan" | "auto-accept"
+export type PermissionMode = "Normal" | "Plan" | "Auto-accept"
 
 type Snapshot = {
   messages: UIMessage[]
@@ -19,7 +19,7 @@ const cloneMessages = (messages: UIMessage[]): UIMessage[] => {
 
 export class InteractiveSession {
   private thinking = false
-  private permissionMode: PermissionMode = "normal"
+  private permissionMode: PermissionMode = "Normal"
   private abortController: AbortController | null = null
   private readonly snapshots: Snapshot[] = []
   private readonly maxSnapshots = 20
@@ -39,9 +39,9 @@ export class InteractiveSession {
 
   cyclePermissionMode(): PermissionMode {
     const next: Record<PermissionMode, PermissionMode> = {
-      normal: "plan",
-      plan: "auto-accept",
-      "auto-accept": "normal",
+      Normal: "Plan",
+      Plan: "Auto-accept",
+      "Auto-accept": "Normal",
     }
     this.permissionMode = next[this.permissionMode]
     return this.permissionMode

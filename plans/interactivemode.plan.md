@@ -15,7 +15,7 @@
 | `Up/Down arrows` | Navigate command history                                                 | Recall previous inputs                                      |
 | `Esc` + `Esc`    | Rewind the code/conversation                                             | Restore the code and/or conversation to a previous point    |
 | `Tab`            | Toggle [extended thinking](/en/docs/build-with-gambit/extended-thinking) | Switch between Thinking on and Thinking off                 |
-| `Shift+Tab`      | Toggle permission modes                                                  | Switch between Auto-Accept Mode, Plan Mode, and normal mode |
+| `Shift+Tab`      | Toggle permission modes                                                  | Switch between Auto-accept Mode, Plan Mode, and Normal mode |
 
 ### Multiline input
 

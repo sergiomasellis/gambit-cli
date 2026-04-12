@@ -23,7 +23,7 @@ export interface PermissionEngineSnapshot {
 type Listener = () => void
 
 export class PermissionEngine {
-  private mode: PermissionMode = 'normal'
+  private mode: PermissionMode = 'Normal'
   private prePlanMode: PermissionMode | null = null
   private requests: PermissionRequestRecord[] = []
   private activeRequest: PermissionRequestRecord | null = null
@@ -71,7 +71,7 @@ export class PermissionEngine {
   }
 
   getPrePlanMode(): PermissionMode {
-    return this.prePlanMode ?? 'normal'
+    return this.prePlanMode ?? 'Normal'
   }
 
   async refresh(): Promise<void> {

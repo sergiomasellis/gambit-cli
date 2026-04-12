@@ -51,7 +51,7 @@ export async function createDefaultToolExecutor(): Promise<ToolExecutor> {
 }
 
 const defaultPermissionEngine = new PermissionEngine()
-defaultPermissionEngine.setMode('auto-accept')
+defaultPermissionEngine.setMode('Auto-accept')
 const defaultTaskRuntime = new TaskRuntime()
 const defaultShellTaskRunner = new ShellTaskRunner(defaultTaskRuntime)
 const defaultMemoryStore = new MemoryStore()

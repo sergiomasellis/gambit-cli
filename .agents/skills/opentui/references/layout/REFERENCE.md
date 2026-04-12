@@ -252,7 +252,7 @@ Parent must have explicit size:
 
 ### Relative (default)
 
-Element flows in normal document order:
+Element flows in Normal document order:
 
 ```tsx
 <box position="relative">

@@ -37,7 +37,7 @@ function normalizeToolName(name: string): string {
 }
 
 function mapPermissionMode(mode: HeadlessPermissionMode): PermissionMode {
-  if (mode === 'acceptEdits') return 'auto-accept'
+  if (mode === 'acceptEdits') return 'Auto-accept'
   return mode
 }
 
@@ -91,7 +91,7 @@ export async function runHeadless(options: RunHeadlessOptions): Promise<number> 
 
   const permissionMode: PermissionMode = headless.permissionMode
     ? mapPermissionMode(headless.permissionMode)
-    : 'auto-accept'
+    : 'Auto-accept'
   runtime.permissionEngine.setMode(permissionMode)
 
   const allowedToolIds = headless.allowedTools?.map(normalizeToolName)

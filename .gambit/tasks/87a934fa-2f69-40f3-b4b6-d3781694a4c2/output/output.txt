@@ -1,7 +1,0 @@
-exit_code: 0
-
-stdout: <empty>
-
-stderr:
-To github.com:sergiomasellis/gambit-opentui.git
-   9bc138c..89ec501  main -> main

@@ -221,7 +221,7 @@ Representative files:
 
 Implication for `gambit`:
 
-- do not bury plan mode / auto-accept mode / confirmations inside the keyboard controller
+- do not bury plan mode / Auto-accept mode / confirmations inside the keyboard controller
 - create a permission service with request objects, decisions, and a queue that UI renders
 
 ### 6. Memory is a system, not a log

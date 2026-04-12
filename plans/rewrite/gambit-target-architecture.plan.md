@@ -307,7 +307,7 @@ Responsibility:
 - evaluate `allow | deny | ask`
 - queue approval requests for UI
 - apply permission mode rules
-- support plan mode and auto-accept mode cleanly
+- support plan mode and Auto-accept mode cleanly
 
 Phase-one design target:
 

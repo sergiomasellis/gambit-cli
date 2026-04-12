@@ -86,8 +86,8 @@ export async function writePlan(sessionId: string, content: string): Promise<str
 }
 
 /**
- * Check whether a given file path is a session plan file.
- * Used by the permission system to allow plan file writes during plan mode.
+ * Check whether a given file path is a session Plan file.
+ * Used by the permission system to allow Plan file writes during Plan mode.
  */
 export function isSessionPlanFile(filePath: string): boolean {
   const plansDir = getPlansDirectory()

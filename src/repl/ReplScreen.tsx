@@ -689,7 +689,7 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
           const permShortcut = matchShortcut(key)
           if (permShortcut?.action === 'cycle-permission') {
             const newMode = runtime.permissionEngine.cycleMode()
-            if (newMode === 'auto-accept' && permissionSnapshot.activeRequest) {
+            if (newMode === 'Auto-accept' && permissionSnapshot.activeRequest) {
               await runtime.permissionEngine.resolve(permissionSnapshot.activeRequest.id, 'allow')
             }
             return
@@ -800,14 +800,18 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
           timestamp: new Date().toISOString(),
         }
         await runtime.conversationStore.pushMessage(userMessage)
-        await runtime.conversationRunner.runTurn({
-          userInput: routed.value,
-          apiKey: apiKey.trim(),
-          modelId,
-          reasoningEffort,
-          showReasoning: thinkingEnabled,
-          signal,
-        })
+        try {
+          await runtime.conversationRunner.runTurn({
+            userInput: routed.value,
+            apiKey: apiKey.trim(),
+            modelId,
+            reasoningEffort,
+            showReasoning: thinkingEnabled,
+            signal,
+          })
+        } catch {
+          // Error already surfaced via conversationStore.setError by the runner.
+        }
         return
       }
 
@@ -1004,14 +1008,18 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
           timestamp: new Date().toISOString(),
         })
 
-        await runtime.conversationRunner.runTurn({
-          userInput: execution.content,
-          apiKey: apiKey.trim(),
-          modelId,
-          reasoningEffort,
-          showReasoning: thinkingEnabled,
-          signal,
-        })
+        try {
+          await runtime.conversationRunner.runTurn({
+            userInput: execution.content,
+            apiKey: apiKey.trim(),
+            modelId,
+            reasoningEffort,
+            showReasoning: thinkingEnabled,
+            signal,
+          })
+        } catch {
+          // Error already surfaced via conversationStore.setError by the runner.
+        }
         return
       }
 
@@ -1035,14 +1043,18 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
           return
         }
 
-        await runtime.conversationRunner.runTurn({
-          userInput: rendered,
-          apiKey: apiKey.trim(),
-          modelId,
-          reasoningEffort,
-          showReasoning: thinkingEnabled,
-          signal,
-        })
+        try {
+          await runtime.conversationRunner.runTurn({
+            userInput: rendered,
+            apiKey: apiKey.trim(),
+            modelId,
+            reasoningEffort,
+            showReasoning: thinkingEnabled,
+            signal,
+          })
+        } catch {
+          // Error already surfaced via conversationStore.setError by the runner.
+        }
       }
     },
     [
@@ -1195,10 +1207,14 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
   const [gitBranch, setGitBranch] = useState<string>('')
 
   useEffect(() => {
-    const proc = Bun.spawn(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    new Response(proc.stdout)
-      .text()
-      .then((branch: string) => setGitBranch(branch.trim()))
+    const proc = Bun.spawn(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    })
+    Promise.all([new Response(proc.stdout).text(), proc.exited])
+      .then(([branch, exitCode]) => {
+        setGitBranch(exitCode === 0 ? branch.trim() : '')
+      })
       .catch(() => setGitBranch(''))
   }, [])
 
@@ -1210,11 +1226,11 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
       : conversation.status
   const responseSpinner = responseSpinnerFrames[responseSpinnerFrame] ?? responseSpinnerFrames[0]
   const permissionModeColor =
-    permissionSnapshot.mode === 'auto-accept'
+    permissionSnapshot.mode === 'Auto-accept'
       ? '#7ee787'
-      : permissionSnapshot.mode === 'plan'
+      : permissionSnapshot.mode === 'Plan'
         ? '#79c0ff'
-        : permissionSnapshot.mode === 'normal'
+        : permissionSnapshot.mode === 'Normal'
           ? '#f2cc60'
           : theme.statusFg
   const isPermissionDialogOpen = Boolean(permissionSnapshot.activeRequest)
@@ -1426,8 +1442,6 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
         flexShrink={0}
         border={['top', 'bottom', 'left', 'right']}
         borderStyle="rounded"
-        paddingX={1}
-        paddingY={1}
         minHeight={6}
         justifyContent="space-between"
         style={{
@@ -1475,7 +1489,7 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
         </box>
       </box>
 
-      <box flexDirection="row" flexShrink={0} justifyContent="space-between" marginTop={1} paddingX={1}>
+      <box flexDirection="row" flexShrink={0} justifyContent="space-between" paddingX={1}>
         <box flexDirection="row" gap={3}>
           <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={'◈ Local'} />
           <text fg={theme.statusFg} attributes={TextAttributes.DIM} content={`⑂ ${gitBranch || 'unknown'}`} />

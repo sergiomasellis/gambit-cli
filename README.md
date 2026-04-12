@@ -104,7 +104,7 @@ Agent Skills are loaded from `SKILL.md` files under `~/.gambit/skills/` and `./.
 | `Ctrl+B` | Chat | Background current task / toggle task panel |
 | `Ctrl+S` | Chat | Stash prompt (save current input; press again to restore) |
 | `Tab` | Chat | Toggle thinking / extended reasoning |
-| `Shift+Tab` | Chat / Permission | Cycle permission mode (normal → plan → auto-accept) |
+| `Shift+Tab` | Chat / Permission | Cycle permission mode (Normal → plan → Auto-accept) |
 | `Page Up / Down` | Global | Scroll conversation by one page |
 | `Ctrl+Home / End` | Global | Jump to top / bottom of conversation |
 | `Up / Down` | Chat | Navigate command history |
@@ -124,7 +124,7 @@ Provide `-p` / `--prompt` to run non-interactively:
 ```bash
 gambit -p "Summarize the README"                             # text output
 gambit -p "Refactor this file" --output-format stream-json   # streaming JSON events
-gambit -p "List the open TODOs" --permission-mode auto-accept
+gambit -p "List the open TODOs" --permission-mode Auto-accept
 ```
 
 Flags:
@@ -139,7 +139,7 @@ Flags:
 | `--system-prompt` | Replace the system prompt. |
 | `--append-system-prompt` | Append to the system prompt (repeatable). |
 | `--append-system-prompt-file` | Append the contents of a file (repeatable). |
-| `--permission-mode` | `normal`, `plan`, `auto-accept`, `acceptEdits`. |
+| `--permission-mode` | `Normal`, `plan`, `Auto-accept`, `acceptEdits`. |
 | `--mcp-config` | Path to an MCP config file. |
 | `-c` / `--continue` | Continue the last conversation. |
 | `-r` / `--resume [id]` | Resume a conversation by id, or open the picker. |

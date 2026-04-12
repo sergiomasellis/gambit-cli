@@ -11,10 +11,10 @@ export const enterPlanModeTool: ToolDefinition<typeof enterPlanModeSchema, strin
   id: 'enterPlanMode',
   displayName: 'Enter Plan Mode',
   description: [
-    'Enter plan mode for complex tasks requiring exploration and design.',
+    'Enter Plan mode for complex tasks requiring exploration and design.',
     'Use this proactively when a task has multiple valid approaches, requires architectural decisions,',
-    'or involves multi-file changes. In plan mode you explore the codebase read-only and write your',
-    'plan to the plan file. When ready, call exitPlanMode to present your plan for user approval.',
+    'or involves multi-file changes. In Plan mode you explore the codebase read-only and write your',
+    'Plan to the Plan file. When ready, call exitPlanMode to present your Plan for user approval.',
   ].join(' '),
   inputSchema: enterPlanModeSchema,
   execute: async (_input, context) => {
@@ -23,49 +23,49 @@ export const enterPlanModeTool: ToolDefinition<typeof enterPlanModeSchema, strin
     }
 
     const currentMode = context.permissionEngine.getSnapshot().mode
-    if (currentMode === 'plan') {
-      return 'Already in plan mode. Continue exploring and write your plan to the plan file.'
+    if (currentMode === 'Plan') {
+      return 'Already in Plan mode. Continue exploring and write your Plan to the Plan file.'
     }
 
-    // Store pre-plan mode for restoration and switch to plan
+    // Store pre-Plan mode for restoration and switch to Plan
     context.permissionEngine.setPrePlanMode(currentMode)
-    context.permissionEngine.setMode('plan')
+    context.permissionEngine.setMode('Plan')
 
     const sessionId = context.sessionId ?? 'default'
     const planFilePath = getPlanFilePath(sessionId)
 
     return [
-      'Entered plan mode. You are now in a read-only exploration phase.',
+      'Entered Plan mode. You are now in a read-only exploration phase.',
       '',
       `Plan file: ${planFilePath}`,
       '',
-      'In plan mode, you should:',
+      'In Plan mode, you should:',
       '1. Thoroughly explore the codebase to understand existing patterns',
       '2. Identify similar features and architectural approaches',
       '3. Consider multiple approaches and their trade-offs',
-      '4. Write your implementation plan to the plan file using writeFile',
-      '5. When ready, call exitPlanMode to present your plan for user approval',
+      '4. Write your implementation Plan to the Plan file using writeFile',
+      '5. When ready, call exitPlanMode to present your Plan for user approval',
       '',
-      'IMPORTANT: Do NOT write or edit any files except the plan file.',
-      'All write/execute tools are blocked except for writing to the plan file.',
+      'IMPORTANT: Do NOT write or edit any files except the Plan file.',
+      'All write/execute tools are blocked except for writing to the Plan file.',
     ].join('\n')
   },
-  summarize: (result) => 'Entered plan mode',
+  summarize: (result) => 'Entered Plan mode',
 }
 
 export const exitPlanModeTool: ToolDefinition<typeof exitPlanModeSchema, string> = {
   id: 'exitPlanMode',
   displayName: 'Exit Plan Mode',
   description: [
-    'Exit plan mode and present your plan for user approval.',
-    'Call this after writing your plan to the plan file.',
-    'The user will review the plan and approve or reject it.',
+    'Exit Plan mode and present your Plan for user approval.',
+    'Call this after writing your Plan to the Plan file.',
+    'The user will review the Plan and approve or reject it.',
     'If approved, you can proceed with implementation.',
-    'If rejected, you will remain in plan mode to refine your plan.',
+    'If rejected, you will remain in Plan mode to refine your Plan.',
   ].join(' '),
   inputSchema: exitPlanModeSchema,
   getPermissionRequest: () => ({
-    subject: 'Exit plan mode and review plan',
+    subject: 'Exit Plan mode and review Plan',
     metadata: { isPlanApproval: true },
   }),
   execute: async (_input, context) => {
@@ -74,17 +74,17 @@ export const exitPlanModeTool: ToolDefinition<typeof exitPlanModeSchema, string>
     }
 
     const currentMode = context.permissionEngine.getSnapshot().mode
-    if (currentMode !== 'plan') {
-      return 'You are not in plan mode. This tool is only for exiting plan mode after writing a plan. If your plan was already approved, continue with implementation.'
+    if (currentMode !== 'Plan') {
+      return 'You are not in Plan mode. This tool is only for exiting Plan mode after writing a Plan. If your Plan was already approved, continue with implementation.'
     }
 
     const sessionId = context.sessionId ?? 'default'
-    const plan = await readPlan(sessionId)
+    const Plan = await readPlan(sessionId)
 
-    if (!plan || plan.trim() === '') {
+    if (!Plan || Plan.trim() === '') {
       const planFilePath = getPlanFilePath(sessionId)
       throw new Error(
-        `No plan file found at ${planFilePath}. Write your plan to this file before calling exitPlanMode.`,
+        `No Plan file found at ${planFilePath}. Write your Plan to this file before calling exitPlanMode.`,
       )
     }
 
@@ -96,16 +96,16 @@ export const exitPlanModeTool: ToolDefinition<typeof exitPlanModeSchema, string>
     const planFilePath = getPlanFilePath(sessionId)
 
     return [
-      'User has approved your plan. You can now start coding.',
+      'User has approved your Plan. You can now start coding.',
       '',
-      `Your plan has been saved to: ${planFilePath}`,
+      `Your Plan has been saved to: ${planFilePath}`,
       'You can refer back to it if needed during implementation.',
       '',
       '## Approved Plan:',
-      plan,
+      Plan,
     ].join('\n')
   },
-  summarize: (result) => 'Exited plan mode — plan approved',
+  summarize: (result) => 'Exited Plan mode — Plan approved',
 }
 
 export { isSessionPlanFile }

@@ -1,9 +1,21 @@
 #!/usr/bin/env bun
 
+import pkg from '../package.json';
 import { parseLaunchOptions } from './app/launch-options';
 import { cleanupAllMCPClients } from './tools/mcp';
 
 const rawArgs = Bun.argv.slice(2);
+
+if (rawArgs.includes('--version') || rawArgs.includes('-V')) {
+  console.log(`gambit ${pkg.version}`);
+  process.exit(0);
+}
+
+if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+  const { printHelp } = await import('./app/help');
+  printHelp();
+  process.exit(0);
+}
 
 if (rawArgs[0] === 'install') {
   const { runInstall } = await import('./app/install');

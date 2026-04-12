@@ -1,7 +1,21 @@
+import pkg from '../package.json';
 import { parseLaunchOptions } from './app/launch-options';
 import { cleanupAllMCPClients } from './tools/mcp';
 
-const launchOptions = parseLaunchOptions(Bun.argv.slice(2));
+const rawArgs = Bun.argv.slice(2);
+
+if (rawArgs.includes('--version') || rawArgs.includes('-V')) {
+  console.log(`gambit ${pkg.version}`);
+  process.exit(0);
+}
+
+if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+  const { printHelp } = await import('./app/help');
+  printHelp();
+  process.exit(0);
+}
+
+const launchOptions = parseLaunchOptions(rawArgs);
 
 if (launchOptions.headless) {
   const { runHeadless } = await import('./app/headless-runner');

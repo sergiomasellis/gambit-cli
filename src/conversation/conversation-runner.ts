@@ -11,6 +11,7 @@ import type { ToolExecutionContext } from '../tools/tool-types'
 import { createToolExecutor, type ToolExecutionResult } from '../tools/tool-executor'
 import { compactMessages, shouldAutoCompact } from './compaction'
 import { getModelContextLength, getCompactionThreshold } from '../lib/model-info'
+import { createStreamLogger } from '../lib/stream-logger'
 import { ConversationStore } from './conversation-store'
 import type { ConversationMessage, ConversationToolCall, ConversationTurnRecord } from './conversation-types'
 
@@ -161,6 +162,13 @@ export class ConversationRunner {
       return `Reasoning:\n${reasoningContent.trim()}\n\n${text}`
     }
 
+    const streamLog = createStreamLogger(turn.id, {
+      modelId: options.modelId,
+      reasoningEffort: options.reasoningEffort ?? null,
+      messageCount: snapshot.messages.length,
+      toolCount: Object.keys(tools).length,
+    })
+
     try {
       const result = await streamText({
         model: selectModel(options.modelId, modelSettings),
@@ -185,7 +193,19 @@ export class ConversationRunner {
       })
 
       const stream = result.fullStream as AsyncIterable<any>
+      let streamError: unknown = null
       for await (const part of stream) {
+        streamLog.event(part.type, {
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          textLen: typeof part.textDelta === 'string' ? part.textDelta.length : undefined,
+        })
+
+        if (part.type === 'error') {
+          streamError = part.error
+          continue
+        }
+
         if (part.type === 'reasoning') {
           if (typeof part.text === 'string' && part.text) {
             reasoningContent += part.text
@@ -281,6 +301,12 @@ export class ConversationRunner {
         }
       }
 
+      if (streamError) {
+        throw streamError instanceof Error ? streamError : new Error(extractErrorMessage(streamError))
+      }
+
+      streamLog.finish({ textChars: assistantContent.length, reasoningChars: reasoningContent.length })
+
       const resolvedText = ((await result.text) || assistantContent).trim()
       const finalContent = composeAssistantContent(resolvedText)
       turn.finishedAt = new Date().toISOString()
@@ -309,6 +335,12 @@ export class ConversationRunner {
       this.dependencies.store.setStatus('idle')
       return turn
     } catch (error) {
+      const isAbort = options.signal?.aborted === true
+      if (isAbort) {
+        streamLog.aborted({ textChars: assistantContent.length })
+      } else {
+        streamLog.error(error, { textChars: assistantContent.length })
+      }
       if (assistantAdded) {
         this.dependencies.store.removeMessage(assistantId)
       }
@@ -366,4 +398,32 @@ export class ConversationRunner {
       { persist: false },
     )
   }
+}
+
+function extractErrorMessage(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.message === 'string') {
+      return record.message
+    }
+    const error = record.error
+    if (error instanceof Error) {
+      return error.message
+    }
+    if (typeof error === 'string') {
+      return error
+    }
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
 }

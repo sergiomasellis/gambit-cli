@@ -1,7 +1,0 @@
-exit_code: 0
-
-stdout:
-./src/repl/ReplScreen.tsx
-
-
-stderr: <empty>

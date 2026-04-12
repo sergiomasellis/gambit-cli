@@ -85,7 +85,7 @@ export function useInteractiveController({
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [historySearch, setHistorySearch] = useState<HistorySearchState>({ active: false, query: "", match: null })
   const [thinkingEnabled, setThinkingEnabled] = useState(false)
-  const [localPermissionMode, setLocalPermissionMode] = useState<PermissionMode>("normal")
+  const [localPermissionMode, setLocalPermissionMode] = useState<PermissionMode>("Normal")
   const [exitPending, setExitPending] = useState(false)
   const followUpQueueRef = useRef<string[]>([])
   const [followUpQueue, setFollowUpQueue] = useState<string[]>([])
@@ -374,6 +374,7 @@ export function useInteractiveController({
     if (lastEscTimestamp.current && now - lastEscTimestamp.current <= DOUBLE_ESC_INTERVAL_MS) {
       const snapshot = sessionRef.current.popSnapshot()
       if (snapshot) {
+        sessionRef.current.abortRun()
         setMessages(snapshot)
         onRewind?.()
       }

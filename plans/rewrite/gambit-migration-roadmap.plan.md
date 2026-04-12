@@ -133,7 +133,7 @@ Work items:
    - `allow`
    - `deny`
    - `ask`
-2. move plan mode / auto-accept mode out of the interactive controller and into permission state
+2. move plan mode / Auto-accept mode out of the interactive controller and into permission state
 3. add a permission queue that UI renders
 4. route shell and agent delegation through the permission engine
 5. add a basic approval dialog component backed by the queue

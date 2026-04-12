@@ -285,17 +285,17 @@ function Modal({ onClose, children }) {
 
 ```tsx
 function Editor() {
-  const [mode, setMode] = useState<"normal" | "insert">("normal")
+  const [mode, setMode] = useState<"Normal" | "insert">("Normal")
   const [content, setContent] = useState("")
   
   useKeyboard((key) => {
-    if (mode === "normal") {
+    if (mode === "Normal") {
       switch (key.name) {
         case "i":
           setMode("insert")
           break
         case "escape":
-          // Already in normal mode
+          // Already in Normal mode
           break
         case "j":
           moveCursorDown()
@@ -306,7 +306,7 @@ function Editor() {
       }
     } else if (mode === "insert") {
       if (key.name === "escape") {
-        setMode("normal")
+        setMode("Normal")
       }
       // Input component handles text in insert mode
     }

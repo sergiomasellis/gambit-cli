@@ -1,6 +1,6 @@
 export type LaunchMode = 'new' | 'continue' | 'resume-id' | 'resume-picker'
 export type OutputFormat = 'text' | 'json' | 'stream-json'
-export type HeadlessPermissionMode = 'normal' | 'plan' | 'auto-accept' | 'acceptEdits'
+export type HeadlessPermissionMode = 'Normal' | 'Plan' | 'Auto-accept' | 'acceptEdits'
 
 export interface HeadlessLaunchOptions {
   prompt: string
@@ -26,7 +26,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const OUTPUT_FORMATS: OutputFormat[] = ['text', 'json', 'stream-json']
-const PERMISSION_MODES: HeadlessPermissionMode[] = ['normal', 'plan', 'auto-accept', 'acceptEdits']
+const PERMISSION_MODES: HeadlessPermissionMode[] = ['Normal', 'Plan', 'Auto-accept', 'acceptEdits']
 
 export function isConversationId(value: string): boolean {
   return UUID_PATTERN.test(value.trim())

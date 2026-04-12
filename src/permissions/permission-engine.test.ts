@@ -8,7 +8,7 @@ test('returns a stable snapshot object until state changes', () => {
   const initialSnapshot = engine.getSnapshot()
   expect(engine.getSnapshot()).toBe(initialSnapshot)
 
-  engine.setMode('plan')
+  engine.setMode('Plan')
 
   const updatedSnapshot = engine.getSnapshot()
   expect(updatedSnapshot).not.toBe(initialSnapshot)

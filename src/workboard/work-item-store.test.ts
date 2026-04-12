@@ -25,7 +25,7 @@ describe('work item store', () => {
     const workItem = await createWorkItem({
       title: 'Implement build pipeline',
       description: 'Add the runtime slice store',
-      metadata: { source: 'plan' },
+      metadata: { source: 'Plan' },
     })
 
     expect(getTaskStorePath(root)).toContain('.gambit')

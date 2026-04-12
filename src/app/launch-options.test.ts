@@ -154,7 +154,7 @@ test('collects multiple --append-system-prompt-file values', () => {
 })
 
 test('parses --permission-mode and rejects unknown values', () => {
-  expect(parseLaunchOptions(['-p', 'hi', '--permission-mode', 'plan']).headless?.permissionMode).toBe('plan')
+  expect(parseLaunchOptions(['-p', 'hi', '--permission-mode', 'Plan']).headless?.permissionMode).toBe('Plan')
   expect(parseLaunchOptions(['-p', 'hi', '--permission-mode', 'acceptEdits']).headless?.permissionMode).toBe(
     'acceptEdits',
   )

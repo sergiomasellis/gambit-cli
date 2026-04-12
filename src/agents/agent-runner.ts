@@ -1,7 +1,9 @@
 import { streamText } from 'ai'
+import { randomUUID } from 'node:crypto'
 
 import { toCoreMessages } from '../lib/messages'
 import { createModelSelector, type ReasoningEffort } from '../lib/model'
+import { createStreamLogger } from '../lib/stream-logger'
 import { formatToolEvent } from '../lib/toolSummaries'
 import { getMemoryPrompt } from '../memory/memory-prompt'
 import type { AgentDefinition } from './agent-types'
@@ -68,118 +70,184 @@ export class AgentRunner {
       timestamp: new Date().toISOString(),
     })
 
-    const result = await streamText({
-      model: selectModel(options.modelId, modelSettings),
-      messages: toCoreMessages(
-        history.map((message) => ({
-          ...message,
-          timestamp: new Date(message.timestamp),
-        })),
-      ),
-      tools,
-      stopWhen: [],
-      abortSignal: options.signal,
+    const turnId = `agent-${options.definition.id}-${randomUUID()}`
+    const streamLog = createStreamLogger(turnId, {
+      agentId: options.definition.id,
+      modelId: options.modelId,
+      reasoningEffort: options.reasoningEffort ?? null,
+      messageCount: history.length,
+      toolCount: Object.keys(tools).length,
     })
 
     let assistantContent = ''
     let reasoningContent = ''
-    const stream = result.fullStream as AsyncIterable<any>
+    let streamError: unknown = null
 
-    for await (const part of stream) {
-      if (part.type === 'text-delta') {
-        const chunk =
-          typeof part.textDelta === 'string' ? part.textDelta : typeof part.delta === 'string' ? part.delta : ''
-        if (!chunk) {
+    try {
+      const result = await streamText({
+        model: selectModel(options.modelId, modelSettings),
+        messages: toCoreMessages(
+          history.map((message) => ({
+            ...message,
+            timestamp: new Date(message.timestamp),
+          })),
+        ),
+        tools,
+        stopWhen: [],
+        abortSignal: options.signal,
+      })
+
+      const stream = result.fullStream as AsyncIterable<any>
+
+      for await (const part of stream) {
+        streamLog.event(part.type, {
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          textLen: typeof part.textDelta === 'string' ? part.textDelta.length : undefined,
+        })
+
+        if (part.type === 'error') {
+          streamError = part.error
           continue
         }
-        assistantContent += chunk
-        await options.updateProgress(`Agent writing response (${assistantContent.length} chars)`)
-        continue
-      }
 
-      if (part.type === 'reasoning') {
-        if (typeof part.text === 'string' && part.text) {
-          reasoningContent += part.text
-          await options.updateProgress('Agent reasoning')
-        }
-        continue
-      }
-
-      if (part.type === 'tool-call') {
-        const summary = formatToolEvent({
-          toolName: part.toolName ?? 'unknown',
-          status: 'started',
-          args: part.input ?? {},
-          toolCallId: part.toolCallId,
-        })
-        await options.appendTranscript({
-          type: 'tool-call',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName ?? 'unknown',
-          input: part.input ?? {},
-          timestamp: new Date().toISOString(),
-        })
-        await options.updateProgress(summary)
-        continue
-      }
-
-      if (part.type === 'tool-result') {
-        if (part.preliminary) {
+        if (part.type === 'text-delta') {
+          const chunk =
+            typeof part.textDelta === 'string' ? part.textDelta : typeof part.delta === 'string' ? part.delta : ''
+          if (!chunk) {
+            continue
+          }
+          assistantContent += chunk
+          await options.updateProgress(`Agent writing response (${assistantContent.length} chars)`)
           continue
         }
-        const summary = formatToolEvent({
-          toolName: part.toolName ?? 'unknown',
-          status: 'completed',
-          args: part.input ?? {},
-          toolCallId: part.toolCallId,
-          result: part.output,
-        })
-        await options.appendTranscript({
-          type: 'tool-result',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName ?? 'unknown',
-          input: part.input ?? {},
-          output: part.output,
-          timestamp: new Date().toISOString(),
-        })
-        await options.updateProgress(summary)
-        continue
+
+        if (part.type === 'reasoning') {
+          if (typeof part.text === 'string' && part.text) {
+            reasoningContent += part.text
+            await options.updateProgress('Agent reasoning')
+          }
+          continue
+        }
+
+        if (part.type === 'tool-call') {
+          const summary = formatToolEvent({
+            toolName: part.toolName ?? 'unknown',
+            status: 'started',
+            args: part.input ?? {},
+            toolCallId: part.toolCallId,
+          })
+          await options.appendTranscript({
+            type: 'tool-call',
+            toolCallId: part.toolCallId,
+            toolName: part.toolName ?? 'unknown',
+            input: part.input ?? {},
+            timestamp: new Date().toISOString(),
+          })
+          await options.updateProgress(summary)
+          continue
+        }
+
+        if (part.type === 'tool-result') {
+          if (part.preliminary) {
+            continue
+          }
+          const summary = formatToolEvent({
+            toolName: part.toolName ?? 'unknown',
+            status: 'completed',
+            args: part.input ?? {},
+            toolCallId: part.toolCallId,
+            result: part.output,
+          })
+          await options.appendTranscript({
+            type: 'tool-result',
+            toolCallId: part.toolCallId,
+            toolName: part.toolName ?? 'unknown',
+            input: part.input ?? {},
+            output: part.output,
+            timestamp: new Date().toISOString(),
+          })
+          await options.updateProgress(summary)
+          continue
+        }
+
+        if (part.type === 'tool-error') {
+          const errorMessage =
+            part.error instanceof Error
+              ? part.error.message
+              : typeof part.error === 'string'
+                ? part.error
+                : JSON.stringify(part.error, null, 2)
+          await options.appendTranscript({
+            type: 'tool-error',
+            toolCallId: part.toolCallId,
+            toolName: part.toolName ?? 'unknown',
+            input: part.input ?? {},
+            error: errorMessage,
+            timestamp: new Date().toISOString(),
+          })
+          await options.updateProgress(`Tool failed: ${part.toolName ?? 'unknown'}`)
+          continue
+        }
       }
 
-      if (part.type === 'tool-error') {
-        const errorMessage =
-          part.error instanceof Error
-            ? part.error.message
-            : typeof part.error === 'string'
-              ? part.error
-              : JSON.stringify(part.error, null, 2)
-        await options.appendTranscript({
-          type: 'tool-error',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName ?? 'unknown',
-          input: part.input ?? {},
-          error: errorMessage,
-          timestamp: new Date().toISOString(),
-        })
-        await options.updateProgress(`Tool failed: ${part.toolName ?? 'unknown'}`)
-        continue
+      if (streamError) {
+        throw streamError instanceof Error ? streamError : new Error(extractAgentErrorMessage(streamError))
       }
-    }
 
-    const finalText = (await result.text).trim() || assistantContent.trim()
-    const finalOutput = reasoningContent.trim()
-      ? `Reasoning:\n${reasoningContent.trim()}\n\n${finalText}`
-      : finalText
+      streamLog.finish({ textChars: assistantContent.length, reasoningChars: reasoningContent.length })
 
-    await options.appendTranscript({
-      type: 'assistant',
-      content: finalOutput,
-      timestamp: new Date().toISOString(),
-    })
+      const finalText = (await result.text).trim() || assistantContent.trim()
+      const finalOutput = reasoningContent.trim()
+        ? `Reasoning:\n${reasoningContent.trim()}\n\n${finalText}`
+        : finalText
 
-    return {
-      output: finalOutput,
-      summary: finalText.slice(0, 200) || `Completed ${options.definition.id} agent run`,
+      await options.appendTranscript({
+        type: 'assistant',
+        content: finalOutput,
+        timestamp: new Date().toISOString(),
+      })
+
+      return {
+        output: finalOutput,
+        summary: finalText.slice(0, 200) || `Completed ${options.definition.id} agent run`,
+      }
+    } catch (error) {
+      const isAbort = options.signal?.aborted === true
+      if (isAbort) {
+        streamLog.aborted({ textChars: assistantContent.length })
+      } else {
+        streamLog.error(error, { textChars: assistantContent.length })
+      }
+      throw error
     }
   }
+}
+
+function extractAgentErrorMessage(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.message === 'string') {
+      return record.message
+    }
+    const error = record.error
+    if (error instanceof Error) {
+      return error.message
+    }
+    if (typeof error === 'string') {
+      return error
+    }
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
 }
