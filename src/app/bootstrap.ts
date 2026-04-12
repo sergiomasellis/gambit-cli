@@ -7,6 +7,7 @@ import { workspaceRoot } from '../config'
 import { AgentRunner } from '../agents/agent-runner'
 import { MemoryStore } from '../memory/memory-store'
 import { PermissionEngine } from '../permissions/permission-engine'
+import { QuestionEngine } from '../questions/question-engine'
 import { loadSystemPrompt } from '../lib/prompt'
 import { AgentTaskRunner } from '../tasks/agent-task-runner'
 import { ShellTaskRunner } from '../tasks/shell-task-runner'
@@ -28,6 +29,7 @@ export interface AppRuntime {
   conversationRunner: ConversationRunner
   memoryStore: MemoryStore
   permissionEngine: PermissionEngine
+  questionEngine: QuestionEngine
   taskRuntime: TaskRuntime
   shellTaskRunner: ShellTaskRunner
   agentTaskRunner: AgentTaskRunner
@@ -62,6 +64,7 @@ export async function bootstrapAppRuntime(options: BootstrapAppRuntimeOptions = 
 
   const memoryStore = new MemoryStore()
   const permissionEngine = new PermissionEngine()
+  const questionEngine = new QuestionEngine()
   const taskRuntime = new TaskRuntime()
   const shellTaskRunner = new ShellTaskRunner(taskRuntime)
   const agentRunner = new AgentRunner()
@@ -79,6 +82,7 @@ export async function bootstrapAppRuntime(options: BootstrapAppRuntimeOptions = 
     workspaceRoot,
     taskRuntime,
     permissionEngine,
+    questionEngine,
     shellTaskRunner,
     memoryStore,
     signal: options.signal,
@@ -107,6 +111,7 @@ export async function bootstrapAppRuntime(options: BootstrapAppRuntimeOptions = 
     createToolContext: (options) => ({
       ...createToolContext(options),
       agentTaskRunner,
+      sessionId: conversationStore.getSnapshot().conversationId,
     }),
   })
 
@@ -117,6 +122,7 @@ export async function bootstrapAppRuntime(options: BootstrapAppRuntimeOptions = 
     conversationRunner,
     memoryStore,
     permissionEngine,
+    questionEngine,
     taskRuntime,
     shellTaskRunner,
     agentTaskRunner,

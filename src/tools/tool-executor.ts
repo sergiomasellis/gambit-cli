@@ -3,6 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { workspaceRoot as defaultWorkspaceRoot } from '../config'
+import { isSessionPlanFile } from '../plans/plan-store'
+import { resolveWorkspacePath } from '../lib/workspace'
 import type { ToolDefinition, ToolEventRecord, ToolExecutionContext } from './tool-types'
 import type { ToolRegistry } from './tool-registry'
 
@@ -79,10 +81,26 @@ export class ToolExecutor {
       if (definition.getPermissionRequest && context.permissionEngine) {
         const permissionRequest = definition.getPermissionRequest(parsedInput as never)
         if (permissionRequest) {
+          // Tag plan file writes so the permission system can allow them in plan mode
+          const metadata = { ...permissionRequest.metadata }
+          if (
+            (toolId === 'writeFile' || toolId === 'patchFile') &&
+            typeof (parsedInput as any)?.path === 'string'
+          ) {
+            try {
+              const resolved = resolveWorkspacePath((parsedInput as any).path)
+              if (isSessionPlanFile(resolved)) {
+                metadata.isPlanFileWrite = true
+              }
+            } catch {
+              // ignore resolution errors
+            }
+          }
+
           const decision = await context.permissionEngine.request({
             toolId,
             subject: permissionRequest.subject,
-            metadata: permissionRequest.metadata,
+            metadata,
           })
 
           if (decision === 'deny') {
@@ -97,8 +115,10 @@ export class ToolExecutor {
         signal: context.signal,
         cwd: context.cwd ?? this.workspaceRoot,
         outputDirectory: context.outputDirectory ?? this.outputDirectory,
+        sessionId: context.sessionId,
         taskRuntime: context.taskRuntime,
         permissionEngine: context.permissionEngine,
+        questionEngine: context.questionEngine,
         shellTaskRunner: context.shellTaskRunner,
         memoryStore: context.memoryStore,
         agentTaskRunner: context.agentTaskRunner,

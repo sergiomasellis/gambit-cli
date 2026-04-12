@@ -2,6 +2,7 @@ import type { z, ZodTypeAny } from 'zod'
 import type { AgentTaskRunner } from '../tasks/agent-task-runner'
 import type { MemoryStore } from '../memory/memory-store'
 import type { PermissionEngine } from '../permissions/permission-engine'
+import type { QuestionEngine } from '../questions/question-engine'
 import type { ShellTaskRunner } from '../tasks/shell-task-runner'
 import type { TaskRuntime } from '../tasks/task-runtime'
 
@@ -11,8 +12,10 @@ export interface ToolExecutionContext {
   signal?: AbortSignal
   cwd?: string
   outputDirectory?: string
+  sessionId?: string
   taskRuntime?: TaskRuntime
   permissionEngine?: PermissionEngine
+  questionEngine?: QuestionEngine
   shellTaskRunner?: ShellTaskRunner
   memoryStore?: MemoryStore
   agentTaskRunner?: AgentTaskRunner

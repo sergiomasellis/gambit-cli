@@ -5,7 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction 
 
 import type { LaunchOptions } from '../app/launch-options'
 import { defaultModel } from '../config'
-import { useAppRuntime, useConversationSnapshot, usePermissionSnapshot, useTaskSnapshot } from '../app/providers'
+import {
+  useAppRuntime,
+  useConversationSnapshot,
+  usePermissionSnapshot,
+  useQuestionSnapshot,
+  useTaskSnapshot,
+} from '../app/providers'
 import { copyTextToClipboard } from '../lib/clipboard'
 import { useModelPicker } from '../lib/modelPicker'
 import type { ReasoningEffort } from '../lib/model'
@@ -20,9 +26,15 @@ import { ModelPickerOverlay } from '../ui/model-picker/ModelPickerOverlay'
 import { ConversationPanel } from '../ui/panels/ConversationPanel'
 import { TaskPanel } from '../ui/panels/TaskPanel'
 import { PermissionOverlay } from '../ui/overlays/PermissionOverlay'
+import { PlanApprovalOverlay } from '../ui/overlays/PlanApprovalOverlay'
 import { SessionPickerOverlay, type SessionPickerOption } from '../ui/overlays/SessionPickerOverlay'
 import { MCPServerManagerOverlay } from '../ui/overlays/MCPServerManagerOverlay'
+import {
+  AskUserQuestionOverlay,
+  useAskUserQuestionController,
+} from '../ui/overlays/AskUserQuestionOverlay'
 import { listMCPServerConfigs } from '../lib/mcp-config'
+import { readPlan } from '../plans/plan-store'
 
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
@@ -142,6 +154,12 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
   const conversation = useConversationSnapshot()
   const taskSnapshot = useTaskSnapshot()
   const permissionSnapshot = usePermissionSnapshot()
+  const questionSnapshot = useQuestionSnapshot()
+  const questionController = useAskUserQuestionController({
+    record: questionSnapshot.activeRequest,
+    onResolve: (id, bundle) => runtime.questionEngine.resolve(id, bundle),
+    onReject: (id, reason) => runtime.questionEngine.reject(id, new Error(reason)),
+  })
   const [inputValue, setInputValue] = useState('')
   const [inputPreview, setInputPreview] = useState<string | null>(null)
   const [modelId, setModelId] = useState(defaultModel)
@@ -161,6 +179,7 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
     fetchError: null,
   })
   const [mcpOverlayOpen, setMcpOverlayOpen] = useState(false)
+  const [activePlanContent, setActivePlanContent] = useState<string | null>(null)
   const scrollboxRef = useRef<ScrollBoxRenderable | null>(null)
   const statusStartedAtRef = useRef<Date | null>(null)
   const launchHandledRef = useRef(false)
@@ -546,6 +565,19 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
     }
   }, [conversation.status])
 
+  // Load plan content when a plan approval request becomes active
+  useEffect(() => {
+    const req = permissionSnapshot.activeRequest
+    if (req?.metadata?.isPlanApproval) {
+      readPlan(conversation.conversationId).then(
+        (content) => setActivePlanContent(content),
+        () => setActivePlanContent(null),
+      )
+    } else {
+      setActivePlanContent(null)
+    }
+  }, [permissionSnapshot.activeRequest, conversation.conversationId])
+
   useKeyboard(
     useCallback(
       async (key: ParsedKey) => {
@@ -558,6 +590,13 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
             await runtime.permissionEngine.resolve(permissionSnapshot.activeRequest.id, 'deny')
             return
           }
+        }
+
+        if (questionSnapshot.activeRequest) {
+          if (questionController.handleKey(key)) {
+            return
+          }
+          return
         }
 
         if (mcpOverlayOpen) {
@@ -616,6 +655,8 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
         moveModelSelection,
         moveSessionSelection,
         permissionSnapshot.activeRequest,
+        questionSnapshot.activeRequest,
+        questionController,
         runtime.permissionEngine,
         sessionPickerState.isOpen,
         startFreshConversation,
@@ -936,10 +977,17 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
           ? '#f2cc60'
           : theme.statusFg
   const isPermissionDialogOpen = Boolean(permissionSnapshot.activeRequest)
+  const isQuestionDialogOpen = Boolean(questionSnapshot.activeRequest)
   const isMainInputFocused =
-    !modelPickerState.isOpen && !sessionPickerState.isOpen && !isPermissionDialogOpen && !sessionInitializing
-  const isModelPickerFocused = modelPickerState.isOpen && !isPermissionDialogOpen
-  const isSessionPickerFocused = sessionPickerState.isOpen && !isPermissionDialogOpen && !modelPickerState.isOpen
+    !modelPickerState.isOpen &&
+    !sessionPickerState.isOpen &&
+    !isPermissionDialogOpen &&
+    !isQuestionDialogOpen &&
+    !sessionInitializing
+  const isModelPickerFocused = modelPickerState.isOpen && !isPermissionDialogOpen && !isQuestionDialogOpen
+  const isSessionPickerFocused =
+    sessionPickerState.isOpen && !isPermissionDialogOpen && !isQuestionDialogOpen && !modelPickerState.isOpen
+  const isQuestionOverlayFocused = isQuestionDialogOpen && !isPermissionDialogOpen
   const backgroundTasks = taskSnapshot.tasks.filter((task) => task.background)
   const activeBackgroundTasks = backgroundTasks.filter((task) => isActiveBackgroundTaskStatus(task.status))
   const recentBackgroundTasks = backgroundTasks
@@ -1060,7 +1108,20 @@ export function ReplScreen({ launchOptions }: ReplScreenProps) {
 
       {mcpOverlayOpen ? <MCPServerManagerOverlay servers={listMCPServerConfigs()} /> : null}
 
-      {permissionSnapshot.activeRequest ? <PermissionOverlay request={permissionSnapshot.activeRequest} /> : null}
+      {permissionSnapshot.activeRequest ? (
+        permissionSnapshot.activeRequest.metadata?.isPlanApproval ? (
+          <PlanApprovalOverlay
+            request={permissionSnapshot.activeRequest}
+            planContent={activePlanContent}
+          />
+        ) : (
+          <PermissionOverlay request={permissionSnapshot.activeRequest} />
+        )
+      ) : null}
+
+      {isQuestionDialogOpen ? (
+        <AskUserQuestionOverlay controller={questionController} hasFocus={isQuestionOverlayFocused} />
+      ) : null}
 
       {backgroundTasksOpen ? (
         <box

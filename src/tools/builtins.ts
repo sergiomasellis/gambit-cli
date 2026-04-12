@@ -21,6 +21,8 @@ import {
 } from '../lib/skills'
 import type { ToolDefinition } from './tool-types'
 import { discoverMCPTools, mcpManagementTools } from './mcp'
+import { enterPlanModeTool, exitPlanModeTool } from './plan-mode'
+import { askUserQuestionTool } from './ask-user-question'
 
 const readFileSchema = z.object({
   path: z.string().describe('File path relative to the workspace root.'),
@@ -411,6 +413,9 @@ export async function createBuiltInToolDefinitions(
     slashCommandTool,
     readTaskOutputTool,
     writeMemoryTool,
+    enterPlanModeTool,
+    exitPlanModeTool,
+    askUserQuestionTool,
   ]
 
   if (cachedSkills.length > 0) {

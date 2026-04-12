@@ -44,3 +44,11 @@ export function usePermissionSnapshot() {
     runtime.permissionEngine.getSnapshot.bind(runtime.permissionEngine),
   )
 }
+
+export function useQuestionSnapshot() {
+  const runtime = useAppRuntime()
+  return useSyncExternalStore(
+    runtime.questionEngine.subscribe.bind(runtime.questionEngine),
+    runtime.questionEngine.getSnapshot.bind(runtime.questionEngine),
+  )
+}

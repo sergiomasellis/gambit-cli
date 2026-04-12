@@ -88,9 +88,11 @@ export function createAiToolMap(
         workspaceRoot: options.workspaceRoot ?? workspaceRoot,
         cwd: options.cwd,
         outputDirectory: options.outputDirectory,
+        sessionId: options.sessionId,
         signal: options.signal,
         taskRuntime: options.taskRuntime,
         permissionEngine: options.permissionEngine,
+        questionEngine: options.questionEngine,
         shellTaskRunner: options.shellTaskRunner,
         memoryStore: options.memoryStore,
         agentTaskRunner: options.agentTaskRunner,
@@ -108,6 +110,7 @@ export type AgentToolId =
   | 'slashCommand'
   | 'readTaskOutput'
   | 'writeMemory'
+  | 'askUserQuestion'
 export type AgentTools = Record<AgentToolId, any>
 
 export const agentTools = createAiToolMap(defaultRegistry, toolExecutor, {

@@ -391,6 +391,11 @@ export function useInteractiveController({
         case "exit-session": {
           sessionRef.current.abortRun()
           setTimeout(() => {
+            try {
+              renderer?.destroy()
+            } catch {
+              // ignore renderer teardown errors
+            }
             process.exit(0)
           }, 10)
           return match.preventDefault ?? false

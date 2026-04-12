@@ -37,6 +37,36 @@ Skills are discovered from `.gambit/skills/` and `.agents/skills/` at both proje
 - `listMCPResources` / `readMCPResource` — Browse and read resources exposed by connected MCP servers.
 - `listMCPTools` / `callMCPTool` — Discover and invoke tools provided by MCP servers. Auto-discovered MCP tools also appear as top-level tools prefixed with `mcp__<server>__<tool>`.
 
+**Plan Mode**
+- `enterPlanMode` — Enter plan mode for complex tasks requiring exploration and design before coding. In plan mode you can only read files and write to the plan file. Use this proactively when a task has multiple valid approaches, requires architectural decisions, or involves multi-file changes.
+- `exitPlanMode` — Exit plan mode and present your plan for user approval. Call this after writing your implementation plan to the plan file. The user reviews and approves or rejects.
+
+## Plan mode
+
+Use `enterPlanMode` proactively when starting non-trivial implementation tasks. Planning prevents wasted effort and ensures alignment.
+
+**When to enter plan mode:**
+- New feature implementation with design decisions
+- Multiple valid approaches exist (architecture, patterns, technologies)
+- Multi-file changes affecting existing behavior
+- Unclear requirements needing exploration first
+- User preferences matter for the implementation direction
+
+**When NOT to enter plan mode:**
+- Single-line fixes, typos, small tweaks
+- Tasks with very specific, detailed instructions
+- Pure research/exploration tasks
+- Simple additions following obvious existing patterns
+
+**In plan mode:**
+1. Explore the codebase thoroughly using `readFile` and `executeShell` (read-only commands)
+2. Understand existing patterns and architecture
+3. Write your implementation plan to the plan file (path shown when entering plan mode)
+4. Call `exitPlanMode` to present your plan for user approval
+5. Do NOT write or edit any files except the plan file
+
+**After plan approval:** Implement the approved plan. Refer back to the plan file if needed.
+
 ## Editing guidelines
 
 - Default to ASCII. Only use non-ASCII characters when the file already uses them or there is clear justification.

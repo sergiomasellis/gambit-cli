@@ -15,6 +15,7 @@ import {
 
 export interface PermissionEngineSnapshot {
   mode: PermissionMode
+  prePlanMode: PermissionMode | null
   requests: PermissionRequestRecord[]
   activeRequest: PermissionRequestRecord | null
 }
@@ -23,10 +24,12 @@ type Listener = () => void
 
 export class PermissionEngine {
   private mode: PermissionMode = 'normal'
+  private prePlanMode: PermissionMode | null = null
   private requests: PermissionRequestRecord[] = []
   private activeRequest: PermissionRequestRecord | null = null
   private snapshot: PermissionEngineSnapshot = {
     mode: this.mode,
+    prePlanMode: this.prePlanMode,
     requests: this.requests,
     activeRequest: this.activeRequest,
   }
@@ -59,6 +62,16 @@ export class PermissionEngine {
     this.refreshSnapshot()
     this.emit()
     return this.mode
+  }
+
+  setPrePlanMode(mode: PermissionMode | null): void {
+    this.prePlanMode = mode
+    this.refreshSnapshot()
+    this.emit()
+  }
+
+  getPrePlanMode(): PermissionMode {
+    return this.prePlanMode ?? 'normal'
   }
 
   async refresh(): Promise<void> {
@@ -117,6 +130,7 @@ export class PermissionEngine {
   private refreshSnapshot(): void {
     this.snapshot = {
       mode: this.mode,
+      prePlanMode: this.prePlanMode,
       requests: this.requests,
       activeRequest: this.activeRequest,
     }
