@@ -1,4 +1,4 @@
-import { streamText } from 'ai'
+import { stepCountIs, streamText } from 'ai'
 import { randomUUID } from 'node:crypto'
 
 import { toCoreMessages } from '../lib/messages'
@@ -93,7 +93,7 @@ export class AgentRunner {
           })),
         ),
         tools,
-        stopWhen: [],
+        stopWhen: stepCountIs(50),
         abortSignal: options.signal,
       })
 
