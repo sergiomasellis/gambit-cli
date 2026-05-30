@@ -6,6 +6,7 @@ USAGE
   gambit [options]                          Launch the interactive TUI
   gambit -p <prompt> [options]              Run a single prompt headlessly
   gambit install [options]                  Install the gambit CLI
+  gambit update [latest|VERSION]            Update the installed CLI from GitHub Releases
   gambit --help | -h                        Show this help
   gambit --version | -V                     Print the version
 

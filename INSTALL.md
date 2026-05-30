@@ -27,6 +27,20 @@ GAMBIT_BIN_DIR="$HOME/bin" ./install
 ./install --no-modify-path
 ```
 
+## Update
+
+Once Gambit is installed, update to the latest release with:
+
+```bash
+gambit update
+```
+
+To install a specific release, run:
+
+```bash
+gambit update 0.7.0
+```
+
 Supported release targets:
 
 - `linux-x64`

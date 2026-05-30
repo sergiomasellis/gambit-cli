@@ -12,6 +12,18 @@ import { cleanupAllMCPClients } from './tools/mcp'
 
 const rawArgs = Bun.argv.slice(2)
 
+if (rawArgs[0] === 'install') {
+  const { runInstall } = await import('./app/install')
+  const exitCode = await runInstall(rawArgs.slice(1))
+  process.exit(exitCode)
+}
+
+if (rawArgs[0] === 'update') {
+  const { runUpdate } = await import('./app/update')
+  const exitCode = await runUpdate(rawArgs.slice(1))
+  process.exit(exitCode)
+}
+
 if (rawArgs.includes('--version') || rawArgs.includes('-V')) {
   console.log(`gambit ${pkg.version}`)
   process.exit(0)
@@ -21,12 +33,6 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   const { printHelp } = await import('./app/help')
   printHelp()
   process.exit(0)
-}
-
-if (rawArgs[0] === 'install') {
-  const { runInstall } = await import('./app/install')
-  const exitCode = await runInstall(rawArgs.slice(1))
-  process.exit(exitCode)
 }
 
 const launchOptions = parseLaunchOptions(rawArgs)

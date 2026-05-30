@@ -51,6 +51,14 @@ curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | 
 ./install --binary ./gambit
 ```
 
+After installing, update to the latest release with:
+
+```bash
+gambit update
+```
+
+To update to a specific version, run `gambit update 0.7.0`.
+
 Supported platforms: `linux-x64`, `linux-x64-musl`, `linux-arm64`, `linux-arm64-musl`, `darwin-x64`, `darwin-arm64`.
 
 Environment overrides:
