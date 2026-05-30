@@ -37,7 +37,7 @@ Environment:
 
 Examples:
   curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash
-  curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.6.0
+  curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.7.0
   ./install --binary ./gambit
 EOF
 }

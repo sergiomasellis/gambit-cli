@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-30
+
 ### Added
 - Productionized repository for open-source distribution: added `Makefile`, `CONTRIBUTING.md`, `CHANGELOG.md`, and build scripts.
 - JSDoc comments and module-level documentation across core source files.
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Reworked installation docs around GitHub Release binaries and source checkout workflows.
 - Replaced stale `setup.*` scripts with Bun-based source checkout bootstrap scripts.
+- Added React type declarations to make strict TypeScript checks pass in clean CI installs.
 
 ### Removed
 - Removed leftover Claude Code / local alias behavior from Windows and setup scripts.

@@ -15,7 +15,7 @@ The installer downloads the matching binary for your platform, verifies it again
 curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash
 
 # Specific release
-curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.6.0
+curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.7.0
 
 # Local compiled binary
 ./install --binary ./gambit

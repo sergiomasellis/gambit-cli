@@ -42,7 +42,7 @@ Install a specific version, choose a directory, or install a local binary:
 curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash
 
 # specific version
-curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.6.0
+curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --version 0.7.0
 
 # custom install directory
 curl -fsSL https://raw.githubusercontent.com/gambit-agent/gambit/main/install | bash -s -- --install-dir "$HOME/bin"
