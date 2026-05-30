@@ -6,22 +6,36 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g. v0.1.0)'
+      release_type:
+        description: 'Version bump to release'
         required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - custom
+      version:
+        description: 'Exact version for custom releases (e.g. 0.8.0 or v0.8.0)'
+        required: false
 
 permissions:
   contents: write
 
 jobs:
   test:
-    name: Test
+    name: Test and prepare release
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.ref }}
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -35,6 +49,95 @@ jobs:
         run: |
           bun run tsc --noEmit
           bun test
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
+              echo "Manual releases must be run from a branch, not ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}." >&2
+              exit 1
+            fi
+
+            current_version="$(node -p "require('./package.json').version")"
+            release_type="${{ github.event.inputs.release_type }}"
+            custom_version="${{ github.event.inputs.version }}"
+
+            if [ "$release_type" = "custom" ]; then
+              if [ -z "$custom_version" ]; then
+                echo "Custom releases require the version input." >&2
+                exit 1
+              fi
+              version="${custom_version#v}"
+            else
+              node -e "
+                const current = process.argv[1];
+                const releaseType = process.argv[2];
+                const match = current.match(/^(\\d+)\\.(\\d+)\\.(\\d+)$/);
+                if (!match) {
+                  throw new Error('package.json version must be x.y.z, got ' + current);
+                }
+                const parts = match.slice(1).map(Number);
+                if (releaseType === 'major') {
+                  parts[0] += 1; parts[1] = 0; parts[2] = 0;
+                } else if (releaseType === 'minor') {
+                  parts[1] += 1; parts[2] = 0;
+                } else if (releaseType === 'patch') {
+                  parts[2] += 1;
+                } else {
+                  throw new Error('Unsupported release type: ' + releaseType);
+                }
+                process.stdout.write(parts.join('.'));
+              " "$current_version" "$release_type" > .next-version
+              version="$(cat .next-version)"
+              rm .next-version
+            fi
+
+            if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Release version must be x.y.z, got $version" >&2
+              exit 1
+            fi
+
+            tag="v$version"
+            if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+              echo "Tag $tag already exists locally." >&2
+              exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+              echo "Tag $tag already exists." >&2
+              exit 1
+            fi
+
+            node -e "
+              const fs = require('node:fs');
+              const version = process.argv[1];
+              const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              pkg.version = version;
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\\n');
+            " "$version"
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package.json
+            if git diff --cached --quiet; then
+              echo "package.json already has version $version; tagging current commit."
+            else
+              git commit -m "chore(release): $tag"
+            fi
+            git tag -a "$tag" -m "Release $tag"
+            git push origin "HEAD:${{ github.ref_name }}"
+            git push origin "$tag"
+          else
+            tag="${GITHUB_REF_NAME}"
+            tag="v${tag#v}"
+            version="${tag#v}"
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.name }}
@@ -60,7 +163,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.test.outputs.tag }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -95,22 +198,11 @@ jobs:
 
   release:
     name: Release
-    needs: build
+    needs:
+      - test
+      - build
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve version
-        id: version
-        run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            tag="${{ github.event.inputs.tag }}"
-          else
-            tag="${GITHUB_REF_NAME}"
-          fi
-          tag="v${tag#v}"
-          version="${tag#v}"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -124,7 +216,7 @@ jobs:
 
       - name: Generate manifest.json
         run: |
-          version="${{ steps.version.outputs.version }}"
+          version="${{ needs.test.outputs.version }}"
           {
             printf '{\n'
             printf '  "version": "%s",\n' "$version"
@@ -155,8 +247,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ needs.test.outputs.tag }}
+          name: ${{ needs.test.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/gambit-linux-x64
